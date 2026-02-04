@@ -1,4 +1,10 @@
 import { Application } from "pixi.js";
+import { stageManager } from "./stage/StageManager";
+import { initStagePresets } from "./stage/stagePresets";
+
+declare global {
+  var __PIXI_APP__: Application | undefined;
+}
 
 class ReaderApp {
   // 单例模式，保证全局只有一个渲染器
@@ -13,6 +19,7 @@ class ReaderApp {
   public static getInstance(): ReaderApp {
     if (!ReaderApp.instance) {
       ReaderApp.instance = new ReaderApp();
+      globalThis.__PIXI_APP__ = ReaderApp.instance.pixiApp;
     }
     return ReaderApp.instance;
   }
@@ -29,6 +36,10 @@ class ReaderApp {
       resolution: window.devicePixelRatio || 1, // 使用设备像素比
       autoDensity: true, // 【关键】告诉 Pixi 调整 CSS 样式以匹配分辨率
     });
+
+    // 初始化舞台管理器与预设
+    stageManager.init();
+    initStagePresets();
 
     // 将 Canvas 添加到 DOM
     container.appendChild(this.pixiApp.canvas);

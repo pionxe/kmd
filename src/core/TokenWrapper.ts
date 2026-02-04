@@ -3,6 +3,7 @@ import { KineticChar } from "./KineticChar"; // 引入新类
 
 export class TokenWrapper extends Container {
   public chars: KineticChar[] = []; // 存储内部的字符
+  public tokenIdx: number = -1; // 【新增】Token 原始索引，用于边界判定
   // public bgGraphics: Graphics; // 专门用于画背景、边框
   private graphicsLayers: Map<string, Graphics> = new Map();
 
@@ -50,16 +51,24 @@ export class TokenWrapper extends Container {
 
   // 辅助方法：获取内容包围盒 (不包含特效造成的位移)
   public getContentBounds(): Rectangle {
-    // 简单计算：宽度是最后一个字的右边缘，高度取第一个字的高度(假设等高)
-    // 更严谨的做法是遍历计算 max bounds
+    let minX = Infinity,
+      maxX = -Infinity;
+    let minY = Infinity,
+      maxY = -Infinity;
+
     if (this.chars.length === 0) return new Rectangle(0, 0, 0, 0);
 
-    const first = this.chars[0];
-    const last = this.chars[this.chars.length - 1];
+    this.chars.forEach((c) => {
+      // 这里取 layoutX/Y 比较稳，取 x/y 可能会因为震动导致框乱跳
+      const halfW = c.width / 2;
+      const halfH = c.height / 2;
+      minX = Math.min(minX, c.layoutX - halfW);
+      maxX = Math.max(maxX, c.layoutX + halfW);
+      minY = Math.min(minY, c.layoutY - halfH);
+      maxY = Math.max(maxY, c.layoutY + halfH);
+    });
 
-    const width = (last?.x ?? 0) + (last?.width ?? 0) / 2;
-    const height = first?.height ?? 0; // 简略
-    return new Rectangle(0, 0, width, height);
+    return new Rectangle(minX, minY, maxX - minX, maxY - minY);
   }
 
   // 获取指定名字的层，如果不存在就创建

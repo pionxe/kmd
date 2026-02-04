@@ -10,59 +10,59 @@ function defineStyle(
 
 // 颜色
 const _red: StyleFunction = (style) => { style.fill = "#ff4d4f"; };
-export const red = defineStyle(_red, { type: 'style', mutexGroup: 'color' });
+export const red = defineStyle(_red, { type: 'style', targetType: 'char', mutexGroup: 'color' });
 
 const _blue: StyleFunction = (style) => { style.fill = "#1890ff"; };
-export const blue = defineStyle(_blue, { type: 'style', mutexGroup: 'color' });
+export const blue = defineStyle(_blue, { type: 'style', targetType: 'char', mutexGroup: 'color' });
 
 const _gray: StyleFunction = (style) => { style.fill = "#8c8c8c"; };
-export const gray = defineStyle(_gray, { type: 'style', mutexGroup: 'color' });
+export const gray = defineStyle(_gray, { type: 'style', targetType: 'char', mutexGroup: 'color' });
 
 const _green: StyleFunction = (style) => { style.fill = "#52c41a"; };
-export const green = defineStyle(_green, { type: 'style', mutexGroup: 'color' });
+export const green = defineStyle(_green, { type: 'style', targetType: 'char', mutexGroup: 'color' });
 
 const _yellow: StyleFunction = (style) => { style.fill = "#faad14"; };
-export const yellow = defineStyle(_yellow, { type: 'style', mutexGroup: 'color' });
+export const yellow = defineStyle(_yellow, { type: 'style', targetType: 'char', mutexGroup: 'color' });
 
 const _purple: StyleFunction = (style) => { style.fill = "#722ed1"; };
-export const purple = defineStyle(_purple, { type: 'style', mutexGroup: 'color' });
+export const purple = defineStyle(_purple, { type: 'style', targetType: 'char', mutexGroup: 'color' });
 
 const _orange: StyleFunction = (style) => { style.fill = "#ff8c00"; };
-export const orange = defineStyle(_orange, { type: 'style', mutexGroup: 'color' });
+export const orange = defineStyle(_orange, { type: 'style', targetType: 'char', mutexGroup: 'color' });
 
 const _cyan: StyleFunction = (style) => { style.fill = "#00ced1"; };
-export const cyan = defineStyle(_cyan, { type: 'style', mutexGroup: 'color' });
+export const cyan = defineStyle(_cyan, { type: 'style', targetType: 'char', mutexGroup: 'color' });
 
 const _pink: StyleFunction = (style) => { style.fill = "#ff69b4"; };
-export const pink = defineStyle(_pink, { type: 'style', mutexGroup: 'color' });
+export const pink = defineStyle(_pink, { type: 'style', targetType: 'char', mutexGroup: 'color' });
 
 // 字重与斜体
 const _bold: StyleFunction = (style) => { style.fontWeight = "bold"; };
-export const bold = defineStyle(_bold, { type: 'style', mutexGroup: 'weight' });
+export const bold = defineStyle(_bold, { type: 'style', targetType: 'char', mutexGroup: 'weight' });
 
 const _italic: StyleFunction = (style) => { style.fontStyle = "italic"; };
-export const italic = defineStyle(_italic, { type: 'style', mutexGroup: 'fontStyle' });
+export const italic = defineStyle(_italic, { type: 'style', targetType: 'char', mutexGroup: 'fontStyle' });
 
 // 字体族
 const _serif: StyleFunction = (style) => { style.fontFamily = "Times New Roman, serif"; };
-export const serif = defineStyle(_serif, { type: 'style', mutexGroup: 'fontFamily' });
+export const serif = defineStyle(_serif, { type: 'style', targetType: 'char', mutexGroup: 'fontFamily' });
 
 const _sans: StyleFunction = (style) => { style.fontFamily = "Arial, sans-serif"; };
-export const sans = defineStyle(_sans, { type: 'style', mutexGroup: 'fontFamily' });
+export const sans = defineStyle(_sans, { type: 'style', targetType: 'char', mutexGroup: 'fontFamily' });
 
 const _mono: StyleFunction = (style) => { style.fontFamily = "Courier New, monospace"; };
-export const mono = defineStyle(_mono, { type: 'style', mutexGroup: 'fontFamily' });
+export const mono = defineStyle(_mono, { type: 'style', targetType: 'char', mutexGroup: 'fontFamily' });
 
 // 字号
 const _big: StyleFunction = (style) => {
   style.fontSize = (typeof style.fontSize === "number" ? style.fontSize : 24) * 1.5;
 };
-export const big = defineStyle(_big, { type: 'style', mutexGroup: 'sizeModifier' });
+export const big = defineStyle(_big, { type: 'style', targetType: 'char', mutexGroup: 'sizeModifier' });
 
 const _small: StyleFunction = (style) => {
   style.fontSize = (typeof style.fontSize === "number" ? style.fontSize : 24) * 0.8;
 };
-export const small = defineStyle(_small, { type: 'style', mutexGroup: 'sizeModifier' });
+export const small = defineStyle(_small, { type: 'style', targetType: 'char', mutexGroup: 'sizeModifier' });
 
 // 装饰
 const _glow: StyleFunction = (style) => {
@@ -105,9 +105,9 @@ const _glow: StyleFunction = (style) => {
     distance: 0,
   } as any;
 };
-export const glow = defineStyle(_glow, { type: 'style', mutexGroup: 'shadow' });
+export const glow = defineStyle(_glow, { type: 'style', targetType: 'char', mutexGroup: 'shadow' });
 
 const _stroke: StyleFunction = (style) => {
   style.stroke = { color: "#000000", width: 2, join: "round" };
 };
-export const stroke = defineStyle(_stroke, { type: 'style', mutexGroup: 'stroke' });
+export const stroke = defineStyle(_stroke, { type: 'style', targetType: 'char', mutexGroup: 'stroke' });

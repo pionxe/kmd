@@ -1,20 +1,72 @@
-// 一个 Token 代表一段具有相同属性的文字
+// 定义通用的参数字典
+export type EffectParams = Record<string, any>;
+
+/**
+ * KMD 文件头元数据
+ */
+export interface KMDMetadata {
+  title?: string;
+  author?: string;
+  mode?: "stage" | "scroll" | "page";
+  designWidth?: number;
+  designHeight?: number;
+  fontSize?: number;
+  lineHeight?: number;
+  speed?: number;
+  variables?: Record<string, any>;
+}
 
 export interface EffectConfig {
-  name: string; // e.g. "popIn"
-  params: Record<string, any>; // e.g. { delay: 0.1, strength: 5 }
-}
-// 例如 "{Hello}" 就是一个 Token，后面的 "World" 是另一个
-export interface KMDToken {
-  content: string; // 文字内容，如 "Hello"
-  effects: EffectConfig[]; // 应用的特效列表，如 ["shake", "red"]
-  commands: string[]; // 句级指令，如 ["@right", "@wait(2)"]
-  params: Record<string, any>; // 特效的具体参数，如 { strength: 10 }
+  name: string;
+  params: EffectParams;
+  level?: "char" | "group" | "block";
+  blocking?: boolean;
 }
 
-// 一整段话就是 Token 的列表
+export interface KMDToken {
+  content: string;
+  effects: EffectConfig[];
+  commands: string[];
+  params: EffectParams;
+  layoutInstructions: LayoutInstruction[];
+  sugar?: Array<{
+    charIdx: number;
+    type: string;
+    level: "char" | "group" | "block";
+    params: Record<string, any>;
+  }>;
+}
+
 export type KMDLine = KMDToken[];
-export interface KMDLineData {
-  tokens: KMDLine;
-  globalEffects: EffectConfig[]; // 作用于整行的全局特效，如 [ "wave" ]
+
+export interface BlockOptions {
+  indent?: number;
+  align?: "left" | "center" | "right";
+  lineHeight?: number;
+  letterSpacing?: number;
+  maxWidth?: number;
+  fontSize?: number;
+  mode?: "normal" | "fade" | "instant" | "jump";
+  speed?: number;
+}
+
+export interface LayoutInstruction {
+  type: string;
+  params: Record<string, any>;
+  blocking?: boolean;
+}
+
+/**
+ * 完整解析结果
+ */
+export interface KMDParseResult {
+  metadata: KMDMetadata;
+  paragraphs: KMDParagraphData[];
+  rawParagraphs: string[]; // 新增：保存原始字符串片段
+}
+
+export interface KMDParagraphData {
+  blockOptions: BlockOptions;
+  tokens: KMDToken[];
+  globalEffects: EffectConfig[];
 }

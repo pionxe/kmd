@@ -13,7 +13,7 @@ uniform sampler2D uTexture;
 uniform vec2 uOffset;
 uniform vec4 uInputSize; // Pixi 系统自动注入
 
-void main(void)
+void main(void) 
 {
     // uInputSize.zw = (1/width, 1/height)
     vec2 dir = uOffset * uInputSize.zw; 

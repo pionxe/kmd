@@ -1,0 +1,222 @@
+import { KineticChar } from "../KineticChar";
+import { effectManager } from "./EffectManager";
+import { styleManager } from "./StyleManager";
+import { stageManager } from "../stage/StageManager";
+import { TokenWrapper } from "../TokenWrapper";
+import { KineticText } from "../KineticText";
+import { layout } from "../layout/LayoutEngine";
+import type { EffectConfig } from "../parser/types";
+import { Container, TextStyle } from "pixi.js";
+import { layoutManager } from "../layout/LayoutManager";
+import type { LayoutCommand } from "../layout/types";
+import gsap from "gsap";
+
+export interface EffectLogicResult {
+  delayOverride?: number;
+  speedMultiplier?: number;
+  blockAdvanceRequested?: boolean;
+}
+
+export class EffectProcessor {
+  public static partition(configs: EffectConfig[]): {
+    layoutCmds: LayoutCommand[];
+    visualConfigs: EffectConfig[];
+    stageConfigs: EffectConfig[];
+  } {
+    const layoutCmds: LayoutCommand[] = [];
+    const visualConfigs: EffectConfig[] = [];
+    const stageConfigs: EffectConfig[] = [];
+
+    configs.forEach((cfg) => {
+      if (layoutManager.has(cfg.name)) {
+        layoutCmds.push({ isCommand: true, type: cfg.name as any, params: cfg.params });
+      } else if (!effectManager.has(cfg.name) && stageManager.has(cfg.name)) {
+        stageConfigs.push(cfg);
+      } else {
+        visualConfigs.push(cfg);
+      }
+    });
+
+    return { layoutCmds, visualConfigs, stageConfigs };
+  }
+
+  private static resolveParams(params: any): any {
+    if (!params) return {};
+    const resolved: any = {};
+    Object.entries(params).forEach(([k, v]) => {
+      if (typeof v === 'string' && v.startsWith("var.")) {
+        const marker = layout.globalMarkers.get(v);
+        resolved[k] = marker ? marker.x : v;
+      } else {
+        resolved[k] = v;
+      }
+    });
+    return resolved;
+  }
+
+  public static applyStyleRecursively(target: Container, name: string, params: any, force: boolean) {
+    const resolved = this.resolveParams(params);
+    if (target instanceof KineticChar) {
+      styleManager.apply(target.style, name, resolved, force);
+    } else if (target instanceof TokenWrapper) {
+      target.chars.forEach(c => styleManager.apply(c.style, name, resolved, force));
+    } else if (target instanceof KineticText) {
+      target.tokens.forEach(t => t.chars.forEach(c => styleManager.apply(c.style, name, resolved, force)));
+    }
+  }
+
+  public static applyInitialStylesToStyle(style: TextStyle, configs: EffectConfig[]) {
+    for (const config of configs) {
+      const isBlocking = config.name === "wait" || config.blocking || config.level === "group" || config.level === "block";
+      if (isBlocking) break;
+      if (styleManager.has(config.name)) {
+        const resolved = this.resolveParams(config.params);
+        // 构建阶段强制为 false，防止冲突锁死后续动态修改
+        styleManager.apply(style, config.name, resolved, false);
+      }
+    }
+  }
+
+  public static applyInitialStyles(target: Container, configs: EffectConfig[]) {
+    for (const config of configs) {
+      const isBlocking = config.name === "wait" || config.blocking || config.level === "group" || config.level === "block";
+      if (isBlocking) break;
+      if (styleManager.has(config.name)) {
+        if (target instanceof KineticChar) {
+          const resolved = this.resolveParams(config.params);
+          styleManager.apply(target.style, config.name, resolved, false);
+        }
+      }
+    }
+  }
+
+  private static processEffectResult(result: any, config: EffectConfig, finalRes: EffectLogicResult) {
+    if (!result) return;
+    if (result.type === "delay") {
+      finalRes.delayOverride = result.value;
+      if (config.level === "block") finalRes.blockAdvanceRequested = true;
+    } else if (result.type === "speedMultiplier") {
+      finalRes.speedMultiplier = result.value;
+    } else if (typeof result === 'number') {
+      finalRes.delayOverride = result;
+      if (config.level === "block") finalRes.blockAdvanceRequested = true;
+    }
+  }
+
+  public static async applyGroupEffects(target: Container, effects: EffectConfig[]): Promise<EffectLogicResult> {
+    const { visualConfigs, stageConfigs } = this.partition(effects);
+    let groupWaitEncountered = false;
+    const finalRes: EffectLogicResult = {};
+
+    // 1. 舞台指令
+    for (const config of stageConfigs) {
+       const result = stageManager.apply(config.name, config.params);
+       this.processEffectResult(result, config, finalRes);
+       if ((config.name === "wait" || config.blocking) && result) await result;
+    }
+
+    // 2. 视觉链条
+    for (const config of visualConfigs) {
+      const meta = effectManager.getMetadata(config.name);
+      const isStyle = styleManager.has(config.name);
+      const isBlocking = config.name === "wait" || config.blocking;
+
+      if (isBlocking && config.level === "char") continue;
+
+      const isExplicitGroup = config.level === "group" || config.level === "block";
+      const isPureGroupType = meta && meta.targetType === "group";
+      const isActionDefault = !config.level && meta && meta.type === "action";
+      const shouldExecute = isExplicitGroup || isPureGroupType || isActionDefault || groupWaitEncountered;
+
+      if (shouldExecute) {
+        const resolved = this.resolveParams(config.params);
+        if (isStyle) {
+          this.applyStyleRecursively(target, config.name, resolved, true);
+        } else if (meta) {
+          const result: any = effectManager.apply(target, config.name, resolved, true);
+          this.processEffectResult(result, config, finalRes);
+          if (isBlocking) {
+            if (result && typeof result.then === 'function') await result;
+            else if (result instanceof gsap.core.Tween || result instanceof gsap.core.Timeline) await result;
+          }
+        } else if (layoutManager.has(config.name)) {
+          // 动态排版接力：如果是一个排版指令但在播放期触发
+          if (target instanceof KineticChar) {
+             // 单字位移暂不支持直接 apply，需转换或跳过，通常排版指令对 Group 更有效
+          } else {
+             const kt = (target as any).parent instanceof KineticText ? (target as any).parent : null;
+             if (kt && typeof kt.applyDynamicLayout === 'function') {
+                 kt.applyDynamicLayout(config.name, resolved);
+             }
+          }
+        }
+      }
+      if (isBlocking && config.level !== "char") groupWaitEncountered = true;
+    }
+    return finalRes;
+  }
+
+  /**
+   * 专门处理节奏糖衣 (Timing Phase)
+   * 这些指令是即时的，不参与阻塞
+   */
+  public static resolveTiming(sugars: any[]): EffectLogicResult & { advanceLevel?: string } {
+    const res: EffectLogicResult & { advanceLevel?: string } = {};
+    for (const s of sugars) {
+       if (s.name === "go") {
+         res.advanceLevel = s.level; 
+         res.delayOverride = s.params[0] ?? 0;
+         if (s.level === "group" || s.level === "block") {
+            res.blockAdvanceRequested = true;
+         }
+       }
+       else if (s.name === "slow") res.speedMultiplier = s.params[0] ?? 2.0;
+       else if (s.name === "fast") res.speedMultiplier = s.params[0] ?? 0.5;
+    }
+    return res;
+  }
+
+  public static async applyCharEffects(char: KineticChar, effects: EffectConfig[], charIndex: number): Promise<EffectLogicResult> {
+    const finalRes: EffectLogicResult = {};
+    
+    // 视觉链执行
+    for (const config of effects) {
+      const meta = effectManager.getMetadata(config.name);
+      const isStyle = styleManager.has(config.name);
+      const isBlocking = config.name === "wait" || config.blocking;
+
+      // 核心修正：如果是非 char 级的阻塞，在单字执行阶段跳过（交给组执行），但不能停止后续样式的应用
+      if (isBlocking && config.level !== "char") {
+          // 这里我们不能直接 break 或 continue，因为我们要实现“红转蓝”的顺序。
+          // 正确做法：如果是 group 级的 wait，且我们在 char 循环里，
+          // 说明这之后的所有效果都应该在播放器层面的“组执行”中处理，此处应直接退出
+          break; 
+      }
+
+      const resolved = this.resolveParams(config.params);
+      if (isStyle) {
+        styleManager.apply(char.style, config.name, resolved, true);
+      } else {
+        const isExplicitChar = config.level === "char";
+        const isBothCharMatch = !config.level && meta && meta.targetType === "both" && meta.type !== "action";
+        const isPureCharType = meta && meta.targetType === "char";
+
+        if (isExplicitChar || isPureCharType || isBothCharMatch) {
+          if (meta?.mutexGroup === "enter") {
+            const autoParams = { ...resolved, delay: ((resolved.delay || 0) as number) + charIndex * 0.05 };
+            char.pendingEnterConfig = { ...config, params: autoParams };
+          } else {
+            const autoParams = { ...resolved, charIndex };
+            const result: any = effectManager.apply(char, config.name, autoParams, true);
+            this.processEffectResult(result, config, finalRes);
+            if (isBlocking && config.level === "char") {
+              if (result && typeof result.then === 'function') await result;
+              else if (result instanceof gsap.core.Tween || result instanceof gsap.core.Timeline) await result;
+            }
+          }
+        }
+      }
+    }
+    return finalRes;
+  }
+}

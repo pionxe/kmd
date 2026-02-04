@@ -6,7 +6,6 @@ class StyleManager {
   private registry: IStyleRegistry = {};
   
   // Track applied mutex groups for each TextStyle object
-  // Using WeakMap to avoid memory leaks when TextStyle is destroyed
   private activeMutexes: WeakMap<TextStyle, Set<string>> = new WeakMap();
 
   constructor() {
@@ -14,29 +13,33 @@ class StyleManager {
     this.registerBatch(Presets as unknown as Record<string, { fn: StyleFunction; meta: EffectMetadata }>);
   }
 
-  // 注册单个样式
   public register(name: string, fn: StyleFunction, meta: EffectMetadata) {
     this.registry[name] = { fn, meta };
   }
 
-  // 批量注册
   public registerBatch(styles: Record<string, { fn: StyleFunction; meta: EffectMetadata }>) {
     Object.assign(this.registry, styles);
   }
 
-  // 是否存在某个样式
   public has(name: string) {
     return !!this.registry[name];
   }
 
-  // 应用样式，支持单个或多个样式同时应用
+  /**
+   * 应用样式
+   * @param style 目标样式对象
+   * @param name 样式名
+   * @param params 参数
+   * @param force 是否强制覆盖互斥检查 (用于时序链)
+   */
   public apply(
     style: TextStyle,
     name: string | string[],
-    params?: Record<string, any>,
+    params: Record<string, any> = {},
+    force: boolean = false
   ) {
     if (Array.isArray(name)) {
-      name.forEach((n) => this.apply(style, n, params));
+      name.forEach((n) => this.apply(style, n, params, force));
       return;
     }
 
@@ -49,14 +52,15 @@ class StyleManager {
     const { fn, meta } = entry;
 
     // --- Conflict Detection ---
-    if (meta.mutexGroup) {
+    const overrideGroups = ['color', 'weight', 'sizeModifier', 'shadow', 'stroke']; 
+    if (meta.mutexGroup && !force) {
       let appliedMutexes = this.activeMutexes.get(style);
       if (!appliedMutexes) {
         appliedMutexes = new Set();
         this.activeMutexes.set(style, appliedMutexes);
       }
 
-      if (appliedMutexes.has(meta.mutexGroup)) {
+      if (appliedMutexes.has(meta.mutexGroup) && !overrideGroups.includes(meta.mutexGroup)) {
         console.warn(
           `%c[Style Conflict] Style group "${meta.mutexGroup}" already applied. Skipping "${name}".`,
           "color: orange; font-weight: bold;"

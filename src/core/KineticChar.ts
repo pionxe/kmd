@@ -1,5 +1,5 @@
 import { Text, TextStyle, Ticker } from "pixi.js";
-
+import type { EffectConfig } from "./parser/types";
 // 定义一个偏移量接口
 export interface TransformOffset {
   x: number;
@@ -21,6 +21,16 @@ export class KineticChar extends Text {
   public _layoutX: number = 0;
   public _layoutY: number = 0;
 
+  // 是否在常规流中
+  public inFlow: boolean = true;
+
+  public stageInstructions: any[] = [];
+  public visualEffects: any[] = [];
+  public timingSugars: any[] = []; // 新增：存储节奏糖衣
+  public timingResults: { delayOverride?: number; speedMultiplier?: number } = {}; // 存储计算结果
+  public tokenIdx: number = -1;
+  public isNewLine: boolean = false; // 新增：显式标记是否为换行符
+
   // 使用 getter/setter 确保同步
   get layoutX() {
     return this._layoutX;
@@ -38,6 +48,9 @@ export class KineticChar extends Text {
     this.y = val; // 【关键】立即应用
   }
 
+  // 新增：暂存的进场特效配置
+  public pendingEnterConfig?: EffectConfig;
+
   // 活跃的特效修改器列表
   // 每个修改器是一个函数，每一帧返回一个 Offset
   // private modifiers: Array<(time: number) => Partial<TransformOffset>> = [];
@@ -47,6 +60,7 @@ export class KineticChar extends Text {
   constructor(text: string, style: TextStyle) {
     super({ text, style });
 
+    this.anchor.set(0.5);
     // 监听 Pixi 的全局 Ticker，每一帧更新自己的状态
     Ticker.shared.add(this.update, this);
   }

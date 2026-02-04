@@ -1,0 +1,242 @@
+import type { KMDToken, EffectConfig, LayoutInstruction } from "./types";
+import { KMDCommandParser } from "./KMDCommandParser";
+import { stageManager } from "../stage/StageManager";
+
+export class KMDScanner {
+  private braceIdCounter = 0;
+
+  public scan(bodyText: string): { tokens: KMDToken[]; globalEffects: EffectConfig[] } {
+    const lines = bodyText.split("\n");
+    const allTokens: KMDToken[] = [];
+    const allGlobalEffects: EffectConfig[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      if (!line.trim() && i !== lines.length - 1) {
+        allTokens.push({ content: "\n", effects: [], commands: [], params: {}, layoutInstructions: [], sugar: [] });
+        continue;
+      }
+
+      const atIdx = this.findAtSymbol(line);
+      let bodyPart = atIdx !== -1 ? line.substring(0, atIdx) : line;
+      let cmdPart = atIdx !== -1 ? line.substring(atIdx + 1).trim() : "";
+
+      const lineTokens = this.scanLineBody(bodyPart);
+      if (cmdPart) this.applyCommandsToTokens(cmdPart, lineTokens, allGlobalEffects);
+
+      allTokens.push(...lineTokens);
+      if (i < lines.length - 1) allTokens.push({ content: "\n", effects: [], commands: [], params: {}, layoutInstructions: [], sugar: [] });
+    }
+    return { tokens: allTokens, globalEffects: allGlobalEffects };
+  }
+
+  private scanLineBody(text: string): KMDToken[] {
+    const tokens: KMDToken[] = [];
+    let pos = 0;
+    let currentText = "";
+
+    const flushText = (bracedGroupId?: number) => {
+        if (currentText || bracedGroupId !== undefined) {
+            const t = this.createSimpleToken(currentText);
+            if (bracedGroupId !== undefined) {
+                (t as any).isBraced = true;
+                (t as any).braceGroupId = bracedGroupId;
+            }
+            tokens.push(t);
+            currentText = "";
+        }
+    };
+
+    while (pos < text.length) {
+      const char = text[pos]!;
+
+      if (char === "\\") {
+        pos++; if (pos < text.length) { currentText += text[pos]; pos++; }
+        continue;
+      }
+
+      if (char === ">") {
+        flushText();
+        let cnt = 0; while (pos < text.length && text[pos] === ">") { cnt++; pos++; }
+        const level = cnt >= 3 ? "block" : (cnt === 2 ? "group" : "char");
+        tokens.push({
+            content: "", isSugar: true, sugar: [{ name: "go", params: {}, level }],
+            effects: [], commands: [], params: {}, layoutInstructions: []
+        } as any);
+        continue;
+      }
+
+      if (char === "{") {
+        flushText();
+        this.braceIdCounter++;
+        const gid = this.braceIdCounter;
+        pos++;
+        while (pos < text.length && text[pos] !== "}") {
+          const c = text[pos]!;
+          if (c === "\\") { pos++; if (pos < text.length) { currentText += text[pos]; pos++; } } 
+          else if (c === ">" || c === "~" || c === "^") {
+            flushText(gid);
+            if (c === ">") {
+                let cnt = 0; while (pos < text.length && text[pos] === ">") { cnt++; pos++; }
+                const level = cnt >= 3 ? "block" : (cnt === 2 ? "group" : "char");
+                tokens.push({
+                    content: "", isSugar: true, sugar: [{ name: "go", params: {}, level }],
+                    effects: [], commands: [], params: {}, layoutInstructions: []
+                } as any);
+            } else {
+                const sName = c === "~" ? "slow" : "fast";
+                tokens.push({
+                    content: "", isSugar: true, sugar: [{ name: sName, params: {}, level: "char" }],
+                    effects: [], commands: [], params: {}, layoutInstructions: []
+                } as any);
+                pos++;
+            }
+          } else { currentText += c; pos++; }
+        }
+        flushText(gid);
+        pos++; continue;
+      }
+
+      if (char === "|") {
+        flushText();
+        pos++; let p = "";
+        if (text[pos] === "(") { pos++; while (pos < text.length && text[pos] !== ")") { p += text[pos]; pos++; } pos++; }
+        tokens.push({
+          content: "", isPipe: true as any, 
+          layoutInstructions: [{ type: "wait", params: KMDCommandParser.parseParams(p || "0.5s"), blocking: true }],
+          effects: [], commands: [], params: {}, sugar: []
+        } as any);
+        continue;
+      }
+
+      if (char === "~" || char === "^") {
+        flushText();
+        const sName = char === "~" ? "slow" : "fast";
+        tokens.push({
+          content: "", isSugar: true, sugar: [{ name: sName, params: {}, level: "char" }],
+          effects: [], commands: [], params: {}, layoutInstructions: []
+        } as any);
+        pos++; continue;
+      }
+
+      currentText += char; pos++;
+    }
+    flushText();
+    
+    const merged: KMDToken[] = [];
+    tokens.forEach(t => {
+        const last = merged[merged.length - 1];
+        const canMerge = last && 
+            !(t as any).isSugar && !(t as any).isPipe && !(t as any).isBraced && t.content && t.content !== "\n" &&
+            !(last as any).isSugar && !(last as any).isPipe && !(last as any).isBraced && last.content && last.content !== "\n";
+
+        if (canMerge) { last.content += t.content; } 
+        else { merged.push(t); }
+    });
+    return merged;
+  }
+
+  private applyCommandsToTokens(cmdStr: string, tokens: KMDToken[], globalEffects: EffectConfig[]) {
+    const parts: string[] = [];
+    let cur = ""; let depth = 0;
+    for (let i = 0; i < cmdStr.length; i++) {
+      if (cmdStr[i] === "(") depth++; else if (cmdStr[i] === ")") depth--;
+      if (cmdStr[i] === " " && depth === 0) { if (cur) parts.push(cur); cur = ""; } 
+      else cur += cmdStr[i];
+    }
+    if (cur) parts.push(cur);
+
+    const visualQueue: EffectConfig[][] = [];
+    const lineLayoutInstructions: LayoutInstruction[] = [];
+
+    parts.forEach(p => {
+      if (KMDCommandParser.isVisual(p)) {
+        visualQueue.push(KMDCommandParser.parseEffectChain(p));
+      } else {
+        const subChain = KMDCommandParser.parseEffectChain(p);
+        subChain.forEach(eff => {
+           if (stageManager.has(eff.name) && tokens.length === 0) {
+              globalEffects.push({ name: eff.name, params: eff.params, blocking: eff.blocking, level: "block" });
+           } else {
+              lineLayoutInstructions.push({ type: eff.name, params: eff.params, blocking: eff.blocking });
+           }
+        });
+      }
+    });
+
+    const visualTargets = tokens.filter(t => t.content.trim() && !(t as any).isSugar && !(t as any).isPipe);
+    const bracedGroups: Map<number, KMDToken[]> = new Map();
+    visualTargets.forEach(t => {
+        const gid = (t as any).braceGroupId;
+        if (gid !== undefined) {
+            if (!bracedGroups.has(gid)) bracedGroups.set(gid, []);
+            bracedGroups.get(gid)!.push(t);
+        }
+    });
+    const bracedGroupIds = Array.from(bracedGroups.keys());
+
+    if (tokens.length > 0) {
+      const primaryTarget = visualTargets.filter(t => (t as any).isBraced)[0] || visualTargets[0] || tokens[0];
+      if (primaryTarget) {
+          primaryTarget.layoutInstructions.push(...lineLayoutInstructions);
+      }
+
+      let mappingDone = false;
+      if (bracedGroupIds.length > 0) {
+          if (visualQueue.length === bracedGroupIds.length) {
+              bracedGroupIds.forEach((gid, idx) => {
+                  const groupTokens = bracedGroups.get(gid)!;
+                  const vChain = visualQueue[idx]!;
+                  groupTokens.forEach(t => t.effects.push(...vChain));
+              });
+              mappingDone = true;
+          } else {
+              const firstGroup = bracedGroups.get(bracedGroupIds[0]!);
+              if (firstGroup) {
+                  const v = visualQueue.shift(); if (v) firstGroup.forEach(t => t.effects.push(...v));
+              }
+              
+              const lastGroupId = bracedGroupIds[bracedGroupIds.length - 1];
+              if (lastGroupId !== undefined) {
+                  const lastGroup = bracedGroups.get(lastGroupId);
+                  if (lastGroup) {
+                      visualQueue.forEach(vChain => lastGroup.forEach(t => t.effects.push(...vChain)));
+                  }
+              }
+              mappingDone = true;
+          }
+      } else if (visualQueue.length === 1 && visualTargets.length > 0) {
+          const vChain = visualQueue[0]!;
+          visualTargets.forEach(t => t.effects.push(...vChain));
+          mappingDone = true;
+      }
+
+      if (!mappingDone && visualQueue.length > 0) {
+        const first = visualTargets[0] || tokens[0];
+        const v = visualQueue.shift(); if (v && first) first.effects.push(...v);
+        const last = visualTargets[visualTargets.length - 1] || tokens[tokens.length - 1];
+        if (last) {
+            visualQueue.forEach(vChain => last.effects.push(...vChain));
+        }
+      }
+    } else {
+      lineLayoutInstructions.forEach(l => globalEffects.push({ name: l.type, params: l.params, blocking: l.blocking, level: "block" }));
+      visualQueue.forEach(vChain => vChain.forEach(eff => globalEffects.push({ name: eff.name, params: eff.params, blocking: eff.blocking, level: "block" })));
+    }
+  }
+
+  private findAtSymbol(line: string): number {
+    let inBrace = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === "\\") { i++; continue; }
+      if (line[i] === "{") inBrace = true;
+      else if (line[i] === "}") inBrace = false;
+      else if (line[i] === "@" && !inBrace) return i;
+    }
+    return -1;
+  }
+
+  private createSimpleToken(text: string): KMDToken {
+    return { content: text, effects: [], commands: [], params: {}, layoutInstructions: [], sugar: [] };
+  }
+}

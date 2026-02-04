@@ -36,9 +36,13 @@ class EffectManager {
     return !!this.registry[name];
   }
 
+  public getMetadata(name: string): EffectMetadata | undefined {
+    return this.registry[name]?.meta;
+  }
+
   // 应用特效的核心方法
-  // name: "shake" | "wave"
-  public apply(target: Container, name: string, params?: EffectParams) {
+  public apply(target: Container, name: string, params: EffectParams = {}, force: boolean = false) {
+    console.log(`[EffectManager] Applying effect: ${name}`, params);
     const entry = this.registry[name];
     if (!entry) {
       console.warn(`[Effect] Unknown: ${name}`);
@@ -47,7 +51,7 @@ class EffectManager {
     const { fn, meta } = entry;
 
     // --- 冲突检测核心逻辑 ---
-    if (meta.mutexGroup) {
+    if (meta.mutexGroup && !force) {
       // 获取该对象已有的互斥组
       let targetMutexes = this.activeMutexes.get(target);
       if (!targetMutexes) {
@@ -70,7 +74,7 @@ class EffectManager {
     }
 
     // 执行
-    fn(target, params);
+    return fn(target, params);
   }
 }
 

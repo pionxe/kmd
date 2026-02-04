@@ -2,7 +2,8 @@ import { Container } from "pixi.js";
 import { TextStyle } from "pixi.js";
 
 export interface EffectMetadata {
-  type: "behavior" | "style" | "filter";
+  type: "behavior" | "style" | "filter" | "action";
+  targetType: "char" | "group" | "both";
   mutexGroup?: string; // 互斥组名，例如 "color", "enter_anim"
   stackable?: boolean; // 是否允许同组叠加 (默认 false)
 }
@@ -16,11 +17,10 @@ export interface EffectParams {
 }
 
 // 特效函数签名
-// target: 可以是整段文字(KineticText)，也可以是单个字(Text)
 export type EffectFunction = (
   target: Container,
   params?: EffectParams,
-) => gsap.core.Tween | gsap.core.Timeline | void;
+) => gsap.core.Tween | gsap.core.Timeline | Promise<void> | any;
 
 // 注册表结构
 export interface IEffectRegistry {
