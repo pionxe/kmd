@@ -619,6 +619,16 @@ export const flash = defineEffect(_flash, {
   stackable: true,
 });
 
+// 22. 变暗 (Dim)
+const _dim: EffectFunction = (target) => {
+  target.alpha = 0.7;
+};
+export const dim = defineEffect(_dim, {
+  type: "style",
+  targetType: "both",
+  mutexGroup: "alpha",
+});
+
 // 20. 模糊 (Blur)
 const _blur: EffectFunction = (target, params = {}) => {
   const strength = params.strength || 4;

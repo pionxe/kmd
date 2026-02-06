@@ -88,7 +88,9 @@ export class ScriptPlayer {
 
       if (!pData || rawKMD === undefined) return;
 
-      if (this.currentMode === "page") await this.clearScreen();
+      if (this.currentMode === "page" || pData.tokens.some((t: any) => t.isSceneClear)) {
+          await this.clearScreen();
+      }
 
       console.log(`[KMD-TRACE] ScriptPlayer: Presenting p[${snapshotIndex}]`);
       this.present(pData, rawKMD, snapshotIndex);

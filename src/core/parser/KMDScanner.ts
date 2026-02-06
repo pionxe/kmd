@@ -17,11 +17,35 @@ export class KMDScanner {
         continue;
       }
 
+      // 1. 处理 --- (清屏/转场)
+      if (line.trim() === "---") {
+          allTokens.push({
+              content: "",
+              effects: [], commands: [], params: {}, sugar: [],
+              layoutInstructions: [{ type: "wait", params: { 0: "0.5s" }, blocking: true }],
+              isSceneClear: true // 标记为场景清除
+          } as any);
+          if (i < lines.length - 1) allTokens.push({ content: "\n", effects: [], commands: [], params: {}, layoutInstructions: [], sugar: [] });
+          continue;
+      }
+
       const atIdx = this.findAtSymbol(line);
       let bodyPart = atIdx !== -1 ? line.substring(0, atIdx) : line;
       let cmdPart = atIdx !== -1 ? line.substring(atIdx + 1).trim() : "";
 
+      // 2. 处理 # (特殊字体)
+      let isSpecialHeading = false;
+      if (bodyPart.trim().startsWith("# ")) {
+          isSpecialHeading = true;
+          bodyPart = bodyPart.trim().substring(2);
+      }
+
       const lineTokens = this.scanLineBody(bodyPart);
+      
+      if (isSpecialHeading) {
+          lineTokens.forEach(t => t.effects.push({ name: "special", params: {}, level: "char" }));
+      }
+
       if (cmdPart) this.applyCommandsToTokens(cmdPart, lineTokens, allGlobalEffects);
 
       allTokens.push(...lineTokens);
@@ -34,6 +58,8 @@ export class KMDScanner {
     const tokens: KMDToken[] = [];
     let pos = 0;
     let currentText = "";
+    let isBold = false;
+    let isItalic = false;
 
     const flushText = (bracedGroupId?: number) => {
         if (currentText || bracedGroupId !== undefined) {
@@ -41,6 +67,17 @@ export class KMDScanner {
             if (bracedGroupId !== undefined) {
                 (t as any).isBraced = true;
                 (t as any).braceGroupId = bracedGroupId;
+            }
+            if (isBold) {
+                t.effects.push({ name: "bold", params: {}, level: "char" });
+                t.effects.push({ name: "big", params: {}, level: "char" });
+                t.sugar!.push({ name: "slow", params: {}, level: "char" } as any);
+            }
+            if (isItalic) {
+                t.effects.push({ name: "thin", params: {}, level: "char" });
+                t.effects.push({ name: "small", params: {}, level: "char" });
+                t.effects.push({ name: "dim", params: {}, level: "char" });
+                t.sugar!.push({ name: "fast", params: {}, level: "char" } as any);
             }
             tokens.push(t);
             currentText = "";
@@ -53,6 +90,19 @@ export class KMDScanner {
       if (char === "\\") {
         pos++; if (pos < text.length) { currentText += text[pos]; pos++; }
         continue;
+      }
+
+      if (char === "*" && text[pos + 1] === "*") {
+          flushText();
+          isBold = !isBold;
+          pos += 2;
+          continue;
+      }
+      if (char === "*" && !isBold) { // 简单的处理，避免与 ** 冲突
+          flushText();
+          isItalic = !isItalic;
+          pos++;
+          continue;
       }
 
       if (char === ">") {
@@ -126,9 +176,15 @@ export class KMDScanner {
     const merged: KMDToken[] = [];
     tokens.forEach(t => {
         const last = merged[merged.length - 1];
+        const hasEffects = t.effects.length > 0;
+        const lastHasEffects = last && last.effects.length > 0;
+        const hasSugar = t.sugar && t.sugar.length > 0;
+        const lastHasSugar = last && last.sugar && last.sugar.length > 0;
+
         const canMerge = last && 
             !(t as any).isSugar && !(t as any).isPipe && !(t as any).isBraced && t.content && t.content !== "\n" &&
-            !(last as any).isSugar && !(last as any).isPipe && !(last as any).isBraced && last.content && last.content !== "\n";
+            !(last as any).isSugar && !(last as any).isPipe && !(last as any).isBraced && last.content && last.content !== "\n" &&
+            !hasEffects && !lastHasEffects && !hasSugar && !lastHasSugar;
 
         if (canMerge) { last.content += t.content; } 
         else { merged.push(t); }

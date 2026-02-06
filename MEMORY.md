@@ -56,16 +56,4 @@ ScriptPlayer 采用“测量 (measure) -> 物理定位 -> 重建 (rebuild)”流
 所有 `prev|line|next` 的标记点均基于文字的物理包围盒（Bounding Box）或 Baseline 计算。即便在 `align=center` 模式下，也能精准命中文字的真实边缘。
 
 ---
-
-## 5. 路线图 (Roadmap)
-
-- [x] 手写 Scanner 架构重构
-- [x] 空间坐标归一化 (960, 540 原点映射)
-- [x] 双通预判排版系统 (Layout Oracle)
-- [x] 子行级非阻塞并发 (Branching)
-- [x] 样式幂等性检查与动态覆盖
-- [x] 原子级 (Char-level) 特效 Staggering
-- [ ] **图片/立绘演员系统 (Actor System)**: 支持非文本实体的排版与同步演出。
-- [ ] **物理模拟系统 (Physics)**: 为文字引入重力、碰撞与物理抖动。
-
 *Last Updated: 2026-02-05*

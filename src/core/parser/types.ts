@@ -29,6 +29,7 @@ export interface KMDToken {
   commands: string[];
   params: EffectParams;
   layoutInstructions: LayoutInstruction[];
+  isSceneClear?: boolean; // 新增：是否是场景清除指令 (---)
   sugar?: Array<{
     charIdx: number;
     type: string;

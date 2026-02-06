@@ -43,9 +43,19 @@ export const bold = defineStyle(_bold, { type: 'style', targetType: 'char', mute
 const _italic: StyleFunction = (style) => { style.fontStyle = "italic"; };
 export const italic = defineStyle(_italic, { type: 'style', targetType: 'char', mutexGroup: 'fontStyle' });
 
+const _thin: StyleFunction = (style) => { style.fontWeight = "100"; };
+export const thin = defineStyle(_thin, { type: 'style', targetType: 'char', mutexGroup: 'weight' });
+
 // 字体族
 const _serif: StyleFunction = (style) => { style.fontFamily = "Times New Roman, serif"; };
 export const serif = defineStyle(_serif, { type: 'style', targetType: 'char', mutexGroup: 'fontFamily' });
+
+const _special: StyleFunction = (style) => { 
+  style.fontFamily = "Georgia, serif"; 
+  style.fontStyle = "italic";
+  style.fill = "#e0e0e0";
+};
+export const special = defineStyle(_special, { type: 'style', targetType: 'char', mutexGroup: 'fontFamily' });
 
 const _sans: StyleFunction = (style) => { style.fontFamily = "Arial, sans-serif"; };
 export const sans = defineStyle(_sans, { type: 'style', targetType: 'char', mutexGroup: 'fontFamily' });
