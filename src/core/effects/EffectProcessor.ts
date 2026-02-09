@@ -170,8 +170,14 @@ export class EffectProcessor {
             res.blockAdvanceRequested = true;
          }
        }
-       else if (s.name === "slow") res.speedMultiplier = s.params[0] ?? 2.0;
-       else if (s.name === "fast") res.speedMultiplier = s.params[0] ?? 0.5;
+       else if (s.name === "slow") {
+         res.speedMultiplier = s.params[0] ?? 2.0;
+         console.log(`[Timing-Trace] Sugar: slow, multiplier: ${res.speedMultiplier}`);
+       }
+       else if (s.name === "fast") {
+         res.speedMultiplier = s.params[0] ?? 0.5;
+         console.log(`[Timing-Trace] Sugar: fast, multiplier: ${res.speedMultiplier}`);
+       }
     }
     return res;
   }
@@ -185,11 +191,15 @@ export class EffectProcessor {
       const isStyle = styleManager.has(config.name);
       const isBlocking = config.name === "wait" || config.blocking;
 
+      // 核心修正：如果该样式属于“初始样式”（即在第一个阻塞指令之前），
+      // 则跳过应用，因为在 LayoutStreamBuilder 阶段它已经反映在 char.style 中了。
+      // 这彻底解决了 big/small 效果叠加两次导致字号变为 81 或 23 的问题。
+      if (isStyle && !isBlocking) {
+          continue; 
+      }
+
       // 核心修正：如果是非 char 级的阻塞，在单字执行阶段跳过（交给组执行），但不能停止后续样式的应用
       if (isBlocking && config.level !== "char") {
-          // 这里我们不能直接 break 或 continue，因为我们要实现“红转蓝”的顺序。
-          // 正确做法：如果是 group 级的 wait，且我们在 char 循环里，
-          // 说明这之后的所有效果都应该在播放器层面的“组执行”中处理，此处应直接退出
           break; 
       }
 

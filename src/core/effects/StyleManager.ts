@@ -52,7 +52,7 @@ class StyleManager {
     const { fn, meta } = entry;
 
     // --- Conflict Detection ---
-    const overrideGroups = ['color', 'weight', 'sizeModifier', 'shadow', 'stroke']; 
+    const overrideGroups = ['color', 'weight', 'size', 'sizeModifier', 'shadow', 'stroke']; 
     if (meta.mutexGroup && !force) {
       let appliedMutexes = this.activeMutexes.get(style);
       if (!appliedMutexes) {
@@ -72,7 +72,13 @@ class StyleManager {
     }
 
     try {
+      if (meta.mutexGroup === 'fontFamily') {
+        console.log(`[StyleManager] Applying font family: "${name}" | params:`, params);
+      }
       fn(style, params);
+      if (meta.mutexGroup === 'fontFamily') {
+        console.log(`[StyleManager] Style object now has fontFamily: "${style.fontFamily}"`);
+      }
     } catch (err) {
       console.error(`[StyleManager] Error applying style "${name}":`, err);
     }

@@ -30,7 +30,7 @@ export class KMDScanner {
       }
 
       const atIdx = this.findAtSymbol(line);
-      let bodyPart = atIdx !== -1 ? line.substring(0, atIdx) : line;
+      let bodyPart = atIdx !== -1 ? line.substring(0, atIdx).trimEnd() : line.trimEnd();
       let cmdPart = atIdx !== -1 ? line.substring(atIdx + 1).trim() : "";
 
       // 2. 处理 # (特殊字体)
@@ -43,7 +43,9 @@ export class KMDScanner {
       const lineTokens = this.scanLineBody(bodyPart);
       
       if (isSpecialHeading) {
-          lineTokens.forEach(t => t.effects.push({ name: "special", params: {}, level: "char" }));
+          lineTokens.forEach(t => {
+              t.effects.push({ name: "special", params: {}, level: "char" });
+          });
       }
 
       if (cmdPart) this.applyCommandsToTokens(cmdPart, lineTokens, allGlobalEffects);
@@ -70,14 +72,12 @@ export class KMDScanner {
             }
             if (isBold) {
                 t.effects.push({ name: "bold", params: {}, level: "char" });
-                t.effects.push({ name: "big", params: {}, level: "char" });
-                t.sugar!.push({ name: "slow", params: {}, level: "char" } as any);
+                t.sugar!.push({ name: "slow", params: {}, level: "char" });
             }
             if (isItalic) {
                 t.effects.push({ name: "thin", params: {}, level: "char" });
-                t.effects.push({ name: "small", params: {}, level: "char" });
                 t.effects.push({ name: "dim", params: {}, level: "char" });
-                t.sugar!.push({ name: "fast", params: {}, level: "char" } as any);
+                t.sugar!.push({ name: "fast", params: {}, level: "char" });
             }
             tokens.push(t);
             currentText = "";
@@ -124,6 +124,16 @@ export class KMDScanner {
         while (pos < text.length && text[pos] !== "}") {
           const c = text[pos]!;
           if (c === "\\") { pos++; if (pos < text.length) { currentText += text[pos]; pos++; } } 
+          else if (c === "*" && text[pos + 1] === "*") {
+              flushText(gid);
+              isBold = !isBold;
+              pos += 2;
+          }
+          else if (c === "*" && !isBold) {
+              flushText(gid);
+              isItalic = !isItalic;
+              pos++;
+          }
           else if (c === ">" || c === "~" || c === "^") {
             flushText(gid);
             if (c === ">") {

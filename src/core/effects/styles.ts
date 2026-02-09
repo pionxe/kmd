@@ -50,12 +50,43 @@ export const thin = defineStyle(_thin, { type: 'style', targetType: 'char', mute
 const _serif: StyleFunction = (style) => { style.fontFamily = "Times New Roman, serif"; };
 export const serif = defineStyle(_serif, { type: 'style', targetType: 'char', mutexGroup: 'fontFamily' });
 
-const _special: StyleFunction = (style) => { 
-  style.fontFamily = "Georgia, serif"; 
-  style.fontStyle = "italic";
+const _special: StyleFunction = (style) => {
+  console.log("[Style-Trace] Applying 'special' preset to TextStyle");
+  style.fontFamily = ["Smiley Sans", "LXGW WenKai", "Georgia", "serif"];
+  style.fontStyle = "normal"; // Smiley Sans Oblique 已经是斜的，不需要额外设置 italic
   style.fill = "#e0e0e0";
 };
-export const special = defineStyle(_special, { type: 'style', targetType: 'char', mutexGroup: 'fontFamily' });
+export const special = defineStyle(_special, {
+  type: "style",
+  targetType: "char",
+  mutexGroup: "fontFamily",
+});
+
+const _size: StyleFunction = (style, params) => {
+  if (params && (params.val || params[0])) {
+    style.fontSize = Number(params.val || params[0]);
+  }
+};
+export const size = defineStyle(_size, {
+  type: "style",
+  targetType: "char",
+  mutexGroup: "size",
+});
+
+const _font: StyleFunction = (style, params) => {
+  let fontName = params.val || params[0];
+  if (fontName) {
+    // 核心修正：剥离可能的引号
+    fontName = String(fontName).replace(/^['"](.*)['"]$/, '$1');
+    console.log(`[Style-Trace] Explicitly switching font to: ${fontName}`);
+    style.fontFamily = fontName;
+  }
+};
+export const font = defineStyle(_font, {
+  type: "style",
+  targetType: "char",
+  mutexGroup: "fontFamily",
+});
 
 const _sans: StyleFunction = (style) => { style.fontFamily = "Arial, sans-serif"; };
 export const sans = defineStyle(_sans, { type: 'style', targetType: 'char', mutexGroup: 'fontFamily' });

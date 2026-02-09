@@ -7,40 +7,47 @@
 *   **Core Engine:** Pixi.js (v8) GPU 加速渲染。
 *   **Animation System:** GSAP 深度驱动动画生命周期。
 *   **Framework:** Vue 3 + TypeScript。
-*   **Version:** **v1.0.0 (Stable)** - 实现了全知排版预言机与原子级时序交错系统。
+*   **Version:** **v1.1.0 (Rhythm Standard)** - 实现了基于 MD 的韵律标准、Baseline V2 精准排版与生产级字体系统。
 
 ## Kinetic Markdown (KMD) Syntax
 
 一个标准的 KMD 段落包含：
 1.  **Front Matter:** YAML 配置。支持 `designWidth/Height`、`speed` 及自定义 `var` 变量。
 2.  **Paragraph Block:** `[Block Options] Body @ Commands`
+3.  **Rhythm Standard (v1.1.0):**
+    *   **\*\*Bold\*\*:** 重音强调。自动解糖为 `bold` 样式 + `slow` 节奏。
+    *   **\*Italic\*:** 轻声私语。自动解糖为 `thin` + `dim` 样式 + `fast` 节奏。
+    *   **# Heading:** 特殊身份/字体。为全行应用 `special` 样式预设。
+    *   **---**: 情境转场。强制清屏并等待 0.5s。
+4.  **Control Sugars:**
     *   **! (Wait):** 强制同步等待当前演出。
     *   **| (Pause):** 行内停顿，支持 `|(1s)` 显式传参。
-    *   **> / >> / >>>**: 独立时序控制。分别对应“字符级 Go (速度持续)”、“行级 Go (分流推进)”、“段落级 Go (异步并发)”。
+    *   **> / >> / >>>**: 独立时序控制。分别对应“字符级 Go”、“行级 Go”、“段落级 Go”。
     *   **~ / ^**: 独立语速调节（慢速/快速）。
 
-## Architecture & Pipeline (v1.0.0)
+## Architecture & Pipeline (v1.1.0)
 
 ### 1. 核心管线 (The Pipeline)
-1.  **Scanner (KMDScanner):** 线性扫描识别 Sugar Token。核心特性是 `braceGroupId`：当语法糖炸裂文本时，利用 GroupId 保证后续 Command 映射能精准找回被大括号包裹的逻辑整体。
+1.  **Scanner (KMDScanner):** 线性扫描识别 Sugar Token。支持 MD 语法嵌套识别与 `braceGroupId` 隔离。
 2.  **Layout Oracle (TextLayoutEngine):** 
-    *   **Phantom Pass**: 预扫描。模拟对齐、跳转与标记逻辑，建立基于 **Baseline 基准** 的未来坐标图。
-    *   **Intelligence Sync**: 将幻影阶段发现的用户标记同步至全局表，允许脚本在文字生成前引用其坐标。
+    *   **Phantom Pass**: 建立基于 **Baseline V2** 的未来坐标图。
+    *   **Baseline V2**: 坐标系锚定于字符基线，通过物理 `ascent` 动态计算 `anchor.y`，彻底解决大小字混排时的上下漂浮问题。
 3.  **Director (ScriptPlayer):** 
-    *   **Measurement Phase**: 孤立测量段落总高度。
-    *   **Reify Phase**: 根据容器位置带入真实 `baseOffset` 重建排版，确保标记点的绝对坐标自洽。
+    *   **Measure Phase**: 孤立测量段落总高度。
+    *   **Reify Phase**: 带入真实 `baseOffset` 重建排版。
+    *   **Font Readiness**: 强制等待 `document.fonts.ready` 确保度量数据绝对精确。
 4.  **Performance Phase (KineticText):** 
-    *   **Go/Wait Branching**: 状态机分流。遇到 `>` 时，视觉演出被 Fork 到异步分支执行，主光标以 0ms 延迟继续推进。
-    *   **Atomic Injection**: 在 `applyCharEffects` 阶段自动注入 `charIndex`，使 behavior 类型的特效（如 Wave）能自动产生单字级的相位差。
+    *   **Style De-duplication**: 自动识别并跳过已应用的初始样式（如 `big`），解决双重缩放 Bug。
+    *   **Relative Tracking**: 引入基于字号的比例间距 (`0.02em`)，提供专业级紧凑排版质感。
 
 ### 2. 坐标与定位体系
-*   **统一设计空间**: 以 1920x1080 逻辑舞台为基准，逻辑原点位于 **屏幕中心 (960, 540)**。所有 `goto(x, y)` 指令在执行前会自动应用坐标偏移。
-*   **文学对齐锚点**: 预定义标记 `prev|line|next` 的 `start|mid|end` 均动态基于文字物理包围盒（Bounding Box）边缘计算，不受对齐方式 (`align=center`) 干扰。
-*   **主重力线 (BaselineY)**: 每一行拥有独立的 Y 轴基准。脱流字符 (goto) 虽不占物理流空间，但其坐标记录仍锚定于所属行的 Baseline。
+*   **统一设计空间**: 以 1920x1080 逻辑舞台为基准，逻辑原点位于屏幕中心 (960, 540)。
+*   **物理基线锚定**: 所有 `prev|line|next` 标记均基于字符基线（Baseline）计算。
+*   **动态步进**: `stepDistance` 实时记录光标推进值，支持精确的原子级位移。
 
-### 3. 特效与 Modifier
-*   **Modifier System:** `KineticChar` 的 Transform 是每一帧根据所有活跃 `Modifier` 叠加计算的结果，支持 `shake`, `wave`, `rainbow` 等多种属性并发叠加。
-*   **Style Mutex**: `StyleManager` 负责管理文字样式（颜色、字号等）。支持样式持久化与动态覆盖，通过 `force` 标记解决时序链中的冲突。
+### 3. 特效与字体系统
+*   **Style Mutex**: 管理颜色、字号、字重等。支持 `font(name)` 显式切换。
+*   **Production Font Loading**: 使用原生 `FontFace` API 强制注册 CJK 字体别名，彻底解决中文字体加载与匹配失败问题。
 
 ## Development
 

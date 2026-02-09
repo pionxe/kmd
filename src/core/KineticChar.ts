@@ -59,6 +59,9 @@ export class KineticChar extends Text {
 
   constructor(text: string, style: TextStyle) {
     super({ text, style });
+    if (text.trim()) {
+        console.log(`[Char-Trace] Created char: "${text}", font: "${style.fontFamily}", weight: ${style.fontWeight}, size: ${style.fontSize}`);
+    }
 
     this.anchor.set(0.5);
     // 监听 Pixi 的全局 Ticker，每一帧更新自己的状态

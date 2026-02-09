@@ -34,7 +34,6 @@ try {
     const boldToken = p2.tokens.find(t => t.content === "重音");
     assert(!!boldToken, "Should find '重音' token");
     assert(boldToken.effects.some(e => e.name === "bold"), "'重音' should have 'bold' effect");
-    assert(boldToken.effects.some(e => e.name === "big"), "'重音' should have 'big' effect");
     assert(boldToken.sugar.some(s => s.name === "slow"), "'重音' should have 'slow' sugar");
 
     // 3. 验证斜体 (*)

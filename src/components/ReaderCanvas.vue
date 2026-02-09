@@ -30,7 +30,7 @@
     const player = new ScriptPlayer(stageManager.contentLayer);
     
     // 1. 从 KMD 文件加载 (也可以直接传字符串)
-    await player.load("/test-markdown.kmd");
+    await player.load("/final-test.kmd");
     
     // 2. 设置模式
     player.setMode("stage"); 

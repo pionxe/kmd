@@ -75,6 +75,7 @@ export interface LayoutResult {
   x: number;
   y: number;
   inFlow: boolean; // 是否在常规流中（影响高度计算）
+  stepDistance?: number; // 【新增】该字符排版导致的光标步进值
 }
 
 // 排版审计记录

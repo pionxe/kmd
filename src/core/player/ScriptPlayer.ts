@@ -29,7 +29,8 @@ export class ScriptPlayer {
     if (kmdSource.endsWith(".kmd") || kmdSource.startsWith("/")) {
       try {
         const response = await fetch(kmdSource);
-        finalSource = await response.text();
+        const blob = await response.blob();
+        finalSource = await blob.text(); // 浏览器通常默认按 UTF-8 处理 blob.text()
       } catch (err) {
         console.error("[ScriptPlayer] Failed to fetch KMD source:", err);
         return;

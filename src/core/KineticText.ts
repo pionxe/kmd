@@ -8,7 +8,7 @@ import { TokenWrapper } from "./TokenWrapper";
 import { KineticChar } from "./KineticChar"; 
 import { stageManager } from "./stage/StageManager";
 
-import type { KMDParagraphData, BlockOptions, EffectConfig } from "./parser/types";
+import type { KMDParagraphData, BlockOptions } from "./parser/types";
 import type { MarkerMap } from "./layout/types";
 
 export interface KineticTextOptions extends BlockOptions {
@@ -48,6 +48,10 @@ export class KineticText extends Container {
 
   public async init(kmdString: string) {
     this._sourceKMD = kmdString;
+    // 关键：确保浏览器字体已完全加载并注册，否则 measureText 会拿到错误的 fallback 数据
+    if ((document as any).fonts) {
+        await (document as any).fonts.ready;
+    }
     await this.build(kmdString);
   }
 
@@ -73,7 +77,11 @@ export class KineticText extends Container {
     this._pendingGlobalEffects = globalEffects as any[];
     Object.assign(this._options, blockOptions);
 
-    const baseStyle = new TextStyle({ fontSize: this._options.fontSize, fill: "#ffffff" });
+    const baseStyle = new TextStyle({ 
+        fontSize: this._options.fontSize, 
+        fill: "#ffffff",
+        padding: 0 // 核心：必须强制为 0 以保证 ascent/height 比例精确
+    });
     const { stream: layoutStream } = LayoutStreamBuilder.build(tokens, baseStyle, globalEffects);
     
     const layoutResults = TextLayoutEngine.calculate(layoutStream, {
@@ -84,14 +92,13 @@ export class KineticText extends Container {
     let currentWrapper: TokenWrapper | null = null;
     let currentTokenIdx = -1;
     let currentLineY = -1;
-    let currentTokenEffects: EffectConfig[] = [];
 
-    layoutResults.forEach(({ item: data, x, y, inFlow }) => {
-      const { char, effects, tokenIdx, stageInstructions, timingSugars } = data.charData;
+    layoutResults.forEach(({ item: data, x, y, inFlow, stepDistance }) => {
+      const { char, effects, tokenIdx, stageInstructions, timingSugars, ascent, height } = data.charData;
       const isNewLine = Math.abs(y - currentLineY) > 1;
 
       if (!char) {
-        const dummy = new KineticChar("", new TextStyle());
+        const dummy = new KineticChar("", new TextStyle({ padding: 0 }));
         dummy.visible = false;
         dummy.layoutX = x; dummy.layoutY = y; dummy.inFlow = false;
         dummy.stageInstructions = stageInstructions || [];
@@ -104,7 +111,21 @@ export class KineticText extends Container {
         return;
       }
 
-      char.layoutX = x; char.layoutY = y; char.inFlow = inFlow;
+      char.layoutX = x; 
+      char.layoutY = y; 
+      char.inFlow = inFlow;
+
+      if (char.text.trim()) {
+          const globalScaleX = char.worldTransform.a;
+          console.log(`[Realize-Trace] Char: "${char.text}", layoutW: ${data.width.toFixed(2)}, objW: ${char.width.toFixed(2)}, step: ${stepDistance?.toFixed(2)}, scaleX: ${globalScaleX.toFixed(2)}, res: ${char.resolution}, layoutX: ${x.toFixed(2)}`);
+      }
+      
+      // 核心修正：基于物理度量动态设置锚点
+      // 这使得 layoutY 即使是基线坐标，字符也能正确显示
+      if (height > 0) {
+          char.anchor.y = ascent / height;
+      }
+
       char.stageInstructions = stageInstructions || [];
       char.visualEffects = effects || [];
       char.timingSugars = timingSugars || [];
@@ -114,12 +135,10 @@ export class KineticText extends Container {
       if (tokenIdx !== currentTokenIdx || isNewLine) {
         if (currentWrapper) {
           this.addChild(currentWrapper);
-          EffectProcessor.applyInitialStyles(currentWrapper, currentTokenEffects); 
         }
         currentWrapper = new TokenWrapper();
         currentWrapper.tokenIdx = tokenIdx;
         currentTokenIdx = tokenIdx;
-        currentTokenEffects = effects;
         currentLineY = y;
         this.tokens.push(currentWrapper);
       }
@@ -129,7 +148,6 @@ export class KineticText extends Container {
 
     if (currentWrapper) {
       this.addChild(currentWrapper);
-      EffectProcessor.applyInitialStyles(currentWrapper, currentTokenEffects);
     }
     this._allCharsCached = this.tokens.flatMap(t => t.chars);
   }
@@ -139,9 +157,12 @@ export class KineticText extends Container {
     if (inFlowChars.length === 0) return 0;
     let minY = Infinity, maxY = -Infinity;
     inFlowChars.forEach((c) => {
-      const h = c.height || this._options.lineHeight;
-      minY = Math.min(minY, c.layoutY - h / 2);
-      maxY = Math.max(maxY, c.layoutY + h / 2);
+      // 核心修正：基于 anchor 计算物理边界
+      const h = c.height;
+      const top = c.layoutY - h * c.anchor.y;
+      const bottom = top + h;
+      minY = Math.min(minY, top);
+      maxY = Math.max(maxY, bottom);
     });
     return maxY - minY;
   }
@@ -152,8 +173,10 @@ export class KineticText extends Container {
     let minX = Infinity, maxX = -Infinity;
     inFlowChars.forEach((c) => {
       const w = c.width;
-      minX = Math.min(minX, c.layoutX - w / 2);
-      maxX = Math.max(maxX, c.layoutX + w / 2);
+      const left = c.layoutX - w * c.anchor.x;
+      const right = left + w;
+      minX = Math.min(minX, left);
+      maxX = Math.max(maxX, right);
     });
     return maxX - minX;
   }
@@ -163,11 +186,13 @@ export class KineticText extends Container {
     if (allChars.length === 0) return new Rectangle(0, 0, 0, 0);
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     allChars.forEach((c) => {
-      const halfW = c.width / 2, halfH = c.height / 2;
-      minX = Math.min(minX, c.layoutX - halfW);
-      maxX = Math.max(maxX, c.layoutX + halfW);
-      minY = Math.min(minY, c.layoutY - halfH);
-      maxY = Math.max(maxY, c.layoutY + halfH);
+      const w = c.width, h = c.height;
+      const left = c.layoutX - w * c.anchor.x;
+      const top = c.layoutY - h * c.anchor.y;
+      minX = Math.min(minX, left);
+      maxX = Math.max(maxX, left + w);
+      minY = Math.min(minY, top);
+      maxY = Math.max(maxY, top + h);
     });
     return new Rectangle(minX, minY, maxX - minX, maxY - minY);
   }
@@ -197,12 +222,15 @@ export class KineticText extends Container {
       const realIdx = i + absoluteOffset;
       const isNewLine = char.isNewLine || char.text === "\n";
       
-      if (isNewLine) {
-        currentRevealSpeed = options.speed ?? this._options.speed ?? 50;
-      }
+      // 3. 执行单字效果 (Visual Phase)
+      // 核心修正：节奏糖衣决定的速度应该是独立于 baseSpeed 的，不应在循环中累加
+      currentRevealSpeed = options.speed ?? this._options.speed ?? 50; 
       
       const timing = EffectProcessor.resolveTiming(char.timingSugars);
-      if (timing.speedMultiplier !== undefined) currentRevealSpeed *= timing.speedMultiplier;
+      if (timing.speedMultiplier !== undefined) {
+          currentRevealSpeed *= timing.speedMultiplier;
+          console.log(`[Play-Trace] Char: "${char.text}", speedMultiplier: ${timing.speedMultiplier}, finalSpeed: ${currentRevealSpeed}`);
+      }
       
       const delayOverride = timing.delayOverride;
       const advanceLevel = timing.advanceLevel;

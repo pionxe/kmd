@@ -1,5 +1,5 @@
 import { KineticChar } from "../KineticChar";
-import { TextStyle } from "pixi.js";
+import { TextStyle, CanvasTextMetrics } from "pixi.js";
 import type { LayoutStream, LayoutCommand } from "./types";
 import type { KMDToken, EffectConfig } from "../parser/types";
 import { EffectProcessor } from "../effects/EffectProcessor";
@@ -8,6 +8,24 @@ import { stageManager } from "../stage/StageManager";
 import { layout } from "./LayoutEngine";
 
 export class LayoutStreamBuilder {
+  private static measureTextSafe(text: string, style: TextStyle) {
+    const metrics = CanvasTextMetrics.measureText(text, style);
+
+    // 如果 ascent/descent 依然丢失（可能因为 Pixi v8 某些环境下 fontProperties 还没同步），尝试手动补全
+    const fontProps = metrics.fontProperties || {
+      ascent: (style.fontSize as number) * 0.8,
+      descent: (style.fontSize as number) * 0.2,
+      fontSize: style.fontSize as number
+    };
+
+    return {
+      width: metrics.width,
+      lineHeight: metrics.lineHeight || (style.fontSize as number) * 1.2,
+      ascent: fontProps.ascent || (style.fontSize as number) * 0.8,
+      descent: fontProps.descent || (style.fontSize as number) * 0.2
+    };
+  }
+
   public static build(
     tokens: KMDToken[],
     baseStyle: TextStyle,
@@ -34,6 +52,42 @@ export class LayoutStreamBuilder {
 
       const measurementStyle = baseStyle.clone();
       EffectProcessor.applyInitialStylesToStyle(measurementStyle, visualConfigs);
+      console.log(`[Layout-Diag] Measuring token "${finalContent.substring(0, 5)}" with style:`, measurementStyle);
+
+      // 手动构建 CSS 字体字符串以兼容 Pixi v8
+      const s = measurementStyle;
+      const fSize = typeof s.fontSize === 'number' ? `${s.fontSize}px` : s.fontSize;
+
+      // 核心修正：更鲁棒的字体族字符串构建
+      const buildFontFamilyString = (ff: string | string[]) => {
+        if (Array.isArray(ff)) {
+          return ff.map(f => f.includes(' ') && !f.startsWith('"') ? `"${f}"` : f).join(', ');
+        }
+        return ff;
+      };
+
+      const fFamily = buildFontFamilyString(s.fontFamily);
+      const fontString = `${s.fontStyle} ${s.fontVariant} ${s.fontWeight} ${fSize} ${fFamily}`;
+
+      // 诊断：检查分辨率一致性
+      const currentRes = window.devicePixelRatio || 1;
+      const measurementRes = (CanvasTextMetrics as any)._canvas?.width ?
+        (CanvasTextMetrics as any)._canvas.width / (CanvasTextMetrics as any)._canvas.style.width : "unknown";
+
+      // 诊断：检查浏览器是否真的加载了这些字体
+      const firstFont = Array.isArray(s.fontFamily) ? s.fontFamily[0] : s.fontFamily;
+      const isLoaded = (document as any).fonts?.check(`${fSize} ${firstFont}`);
+
+      if (token.content.trim()) {
+        console.log(`[Layout-Diag] Token: "${token.content.substring(0, 5)}", font: "${fontString}", loaded: ${isLoaded}, screenRes: ${currentRes}, measureRes: ${measurementRes}`);
+      }
+
+      // 预先测量字体指标
+      const fontMetrics = CanvasTextMetrics.measureFont(fontString);
+      const safeGlobalMetrics = {
+        ascent: fontMetrics.ascent || (measurementStyle.fontSize as number) * 0.8,
+        descent: fontMetrics.descent || (measurementStyle.fontSize as number) * 0.2
+      };
 
       // 特殊处理 Sugar Token (> / >> / >>>)
       if ((token as any).isSugar && token.sugar && token.sugar.length > 0) {
@@ -44,7 +98,9 @@ export class LayoutStreamBuilder {
           effects: [],
           // 使用 s.name 确保与 Scanner 协议一致
           timingSugars: token.sugar.map((s: any) => ({ name: s.name, params: s.params, level: s.level })),
-          tokenIdx, charIdx: 0, width: 0, height: 0, stageInstructions: []
+          tokenIdx, charIdx: 0, width: 0, height: 0,
+          ascent: safeGlobalMetrics.ascent, descent: safeGlobalMetrics.descent,
+          stageInstructions: []
         };
         allCharsData.push(charData);
         stream.push({ isCommand: false, width: 0, height: 0, charData });
@@ -90,7 +146,9 @@ export class LayoutStreamBuilder {
       if (finalContent.length === 0 && stageInstructions.length > 0) {
         const charData = {
           char: null, effects: visualConfigs, tokenIdx, charIdx: 0,
-          width: 0, height: 0, stageInstructions
+          width: 0, height: 0,
+          ascent: safeGlobalMetrics.ascent, descent: safeGlobalMetrics.descent,
+          stageInstructions
         };
         allCharsData.push(charData);
         stream.push({ isCommand: false, width: 0, height: 0, charData });
@@ -98,7 +156,12 @@ export class LayoutStreamBuilder {
 
       for (let i = 0; i < chars.length; i++) {
         const charText = chars[i]!;
-        const char = new KineticChar(charText, measurementStyle.clone());
+        const charStyle = measurementStyle.clone();
+
+        // 关键：获取精确指标，使用安全助手
+        const charMetrics = LayoutStreamBuilder.measureTextSafe(charText, charStyle);
+
+        const char = new KineticChar(charText, charStyle);
         // 核心加固：无论来源如何，只要字符是 \n，就标记为 NewLine
         if (charText === "\n") char.isNewLine = true; 
         
@@ -107,8 +170,9 @@ export class LayoutStreamBuilder {
         const timingSugars: any[] = [];
         
         if (token.sugar) {
-          token.sugar.filter((s: any) => s.charIdx === i).forEach((s: any) => {
-            timingSugars.push({ name: s.type, params: s.params, level: s.level });
+          // 这里的逻辑：如果是针对特定索引的，或者是全局针对该 Token 的（charIdx 为 undefined），都应用
+          token.sugar.filter((s: any) => s.charIdx === i || s.charIdx === undefined).forEach((s: any) => {
+            timingSugars.push({ name: s.name, params: s.params, level: s.level });
           });
         }
         
@@ -118,12 +182,19 @@ export class LayoutStreamBuilder {
           timingSugars, // 独立存储时序糖衣
           tokenIdx, 
           charIdx: i,
-          width: char.width, 
-          height: char.height,
+          width: charMetrics.width,
+          height: charMetrics.ascent + charMetrics.descent, // 核心变更：使用物理字高而非行高
+          ascent: charMetrics.ascent,
+          descent: charMetrics.descent,
           stageInstructions: isLastChar ? stageInstructions : []
         };
+
+        if (token.content.includes("重音") || token.content.includes("轻声")) {
+          console.log(`[Builder-Trace] Char: "${charText}", width: ${charData.width}, ascent: ${charData.ascent}, descent: ${charData.descent}, font: ${charStyle.fontFamily}`);
+        }
+
         allCharsData.push(charData);
-        stream.push({ isCommand: false, width: char.width, height: char.height, charData });
+        stream.push({ isCommand: false, width: charData.width, height: charData.height, charData });
       }
       postCmds.forEach(c => stream.push(c));
     });
