@@ -17,33 +17,77 @@ class LayoutEngine {
   public enableManualScroll = true;
   public globalMarkers: MarkerMap = new Map();
 
+  private isEventsBound = false;
+
   public init(container: Container, startY: number = 100) {
+    // 核心修复：如果容器已经一致，说明是布局重排，严禁重置状态
+    if (this.container === container) {
+      this.recenterAll();
+      return;
+    }
+
     this.container = container;
     this.startY = startY;
     this.maxWidth = readerApp.pixiApp.screen.width * 0.8;
-    this.reset(); // 初始重置
-    readerApp.pixiApp.ticker.add(this.update, this);
-
-    readerApp.pixiApp.renderer.on("resize", () => {
-      this.recenterAll();
-    });
+    this.reset(); // 仅在初次或容器变更时重置
+    
+    if (!this.isEventsBound) {
+      readerApp.pixiApp.ticker.add(this.update, this);
+      readerApp.pixiApp.renderer.on("resize", () => {
+        this.recenterAll();
+      });
+      this.isEventsBound = true;
+    }
   }
 
   private async recenterAll() {
     if (!this.container) return;
-    const newWidth = readerApp.pixiApp.screen.width;
-    const newMaxWidth = stageManager.isFixedRatio ? stageManager.designWidth * 0.8 : newWidth * 0.8;
 
-    this.currentY = this.startY;
+    // 1. Stage 模式保护：演戏模式下，坐标体系由设计分辨率锁定，禁止重排
+    // 缩放由 StageManager 的 CSS/Matrix 变换处理
+    if (stageManager.isFixedRatio) return;
+
+    // 2. Scroll 模式：执行弹性流式布局 (Reflow)
+    const screenW = readerApp.pixiApp.screen.width;
+
+    // 计算新的最大宽度 (响应式)
+    const newMaxWidth = screenW * 0.8;
+    const needsRebuild = Math.abs(newMaxWidth - this.maxWidth) > 10; // 增加容差，防止微小抖动
+    
+    // 记录新的全局最大宽度
+    this.maxWidth = newMaxWidth;
+
+    let flowY = this.startY;
+
     for (const child of this.container.children) {
-      if (child instanceof KineticText) {
-        await child.rebuild({ maxWidth: newMaxWidth });
-        const logicalScreenWidth = stageManager.isFixedRatio ? stageManager.designWidth : newWidth;
-        child.x = (logicalScreenWidth - newMaxWidth) / 2;
-        child.y = this.currentY;
-        this.currentY += child.getLayoutHeight() + this.paragraphSpacing;
+      if (child instanceof KineticText && child.isAutoLayout) {
+        // A. 如果宽度剧变，执行内部重排
+        if (needsRebuild) {
+          await child.rebuild({ maxWidth: newMaxWidth });
+          child.logicalHeight = child.getLayoutHeight();
+        }
+
+        // B. 校准水平位置
+        const blockWidth = child.getLayoutWidth();
+        const align = (child as any)._options.align || 'left';
+
+        if (align === 'center') {
+          child.x = (screenW - blockWidth) / 2;
+        } else if (align === 'right') {
+          child.x = screenW - blockWidth - (screenW * 0.1);
+        } else {
+          child.x = screenW * 0.1;
+        }
+
+        // C. 校准垂直堆叠
+        child.y = flowY;
+        const step = child.logicalHeight || child.getLayoutHeight();
+        flowY += step + this.paragraphSpacing;
       }
     }
+
+    // 同步累加器
+    this.currentY = flowY;
   }
 
   private targetScrollY: number = 0;
@@ -132,6 +176,7 @@ class LayoutEngine {
     // line.applyParagraphEffects(); // 由策略模式调用
 
     const logicalHeight = line.getLayoutHeight();
+    line.logicalHeight = logicalHeight; // 持久化
     const logicalWidth = line.getLayoutWidth();
     this.updateLineMarkers(line.x, this.currentY, logicalWidth, false);
 

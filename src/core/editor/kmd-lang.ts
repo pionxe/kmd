@@ -10,7 +10,12 @@ const tokenTypes = ['function', 'variable', 'keyword', 'string', 'number', 'oper
 const tokenModifiers = ['declaration', 'documentation'];
 const legend = { tokenTypes, tokenModifiers };
 
+let isRegistered = false;
+
 export const registerKMDLanguage = () => {
+  if (isRegistered) return;
+  isRegistered = true;
+
   monaco.languages.register({ id: 'kmd' });
 
   // --- 1. Monarch 语法定义 ---

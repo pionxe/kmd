@@ -26,14 +26,23 @@ class ReaderApp {
 
   // 初始化 Pixi 应用
   public async init(container: HTMLElement) {
-    if (this.isInitialized) return;
+    if (this.isInitialized) {
+      // 核心修复：如果已初始化，说明是布局重排。
+      // 我们需要将原本的 canvas 搬移到新的容器节点下。
+      if (this.pixiApp.canvas.parentElement !== container) {
+        container.appendChild(this.pixiApp.canvas);
+        // 搬家后强制触发一次 resize
+        this.pixiApp.resize();
+      }
+      return;
+    }
 
     // v8 初始化方式
     await this.pixiApp.init({
-      background: "#000000", //以此颜色测试，方便看清画布边界
-      resizeTo: window, // 自动跟随容器大小
-      antialias: true, // 抗锯齿
-      resolution: window.devicePixelRatio || 1, // 使用设备像素比
+      background: "#000000",
+      resizeTo: container, // 自动跟随容器大小
+      antialias: true,
+      resolution: window.devicePixelRatio || 1,
       autoDensity: true, // 【关键】告诉 Pixi 调整 CSS 样式以匹配分辨率
     });
 

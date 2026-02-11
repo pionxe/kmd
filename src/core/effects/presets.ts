@@ -162,6 +162,9 @@ export const jump = defineEffect(_jump, {
 // 7. 彩虹 (Rainbow)
 const _rainbow: EffectFunction = (target, params = {}) => {
   if (target instanceof KineticChar) {
+    // 核心修复：将基础 fill 设为纯白，否则 tint 无法在非白颜色上正确工作
+    target.style.fill = "#ffffff";
+    
     const speed = params.speed || 0.002;
     const offset = params.delay !== undefined ? params.delay : (params.charIndex || 0) * 0.5;
     target.addModifier("rainbow", (time) => {

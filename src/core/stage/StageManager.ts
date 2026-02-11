@@ -31,6 +31,7 @@ class StageManager {
 
   private registry: Map<string, StageEffectFunction> = new Map();
   public camAuditLog: any[] = [];
+  private isInitialized = false;
 
   constructor() {
     this.world = new Container();
@@ -43,6 +44,8 @@ class StageManager {
   }
 
   public init() {
+    if (this.isInitialized) return;
+    
     const stage = readerApp.pixiApp.stage;
     stage.addChild(this.world);
     stage.addChild(this.uiLayer);
@@ -50,6 +53,8 @@ class StageManager {
     this.resize();
     readerApp.pixiApp.renderer.on("resize", () => this.resize());
     readerApp.pixiApp.ticker.add(this.update, this);
+    
+    this.isInitialized = true;
   }
 
   /**
@@ -140,6 +145,12 @@ class StageManager {
     this.resize();
   }
 
+  public setBackgroundColor(color: string) {
+    if (readerApp.pixiApp && readerApp.pixiApp.renderer) {
+      readerApp.pixiApp.renderer.background.color = color;
+    }
+  }
+
   public setMode(mode: "stage" | "scroll") {
     this.isFixedRatio = mode === "stage";
     gsap.killTweensOf(this.camera);
@@ -152,6 +163,18 @@ class StageManager {
     this.resize();
   }
 
+  public get viewport() {
+    return this._viewport;
+  }
+
+  public get config() {
+    return {
+      designWidth: this.designWidth,
+      designHeight: this.designHeight,
+      isFixedRatio: this.isFixedRatio
+    };
+  }
+
   public dumpCamReport() {
     fetch("http://localhost:9999/cam", {
       method: "POST",
@@ -161,17 +184,24 @@ class StageManager {
   }
 
   private resize() {
+    // 使用逻辑像素尺寸 (Screen)，它已经考虑了 resolution 和 autoDensity
     const screenW = readerApp.pixiApp.screen.width;
     const screenH = readerApp.pixiApp.screen.height;
+
     if (!this.isFixedRatio) {
       this._viewport = { offsetX: 0, offsetY: 0, baseScale: 1 };
       this.letterbox.clear();
+      this.world.scale.set(1);
+      this.world.position.set(0, 0);
+      this.world.pivot.set(0, 0);
       return;
     }
+
     const scale = Math.min(screenW / this.designWidth, screenH / this.designHeight);
     const offsetX = (screenW - this.designWidth * scale) / 2;
     const offsetY = (screenH - this.designHeight * scale) / 2;
     this._viewport = { offsetX, offsetY, baseScale: scale };
+
     this.letterbox.clear().fill({ color: 0x000000 });
     if (offsetY > 0) {
       this.letterbox.rect(0, 0, screenW, offsetY).rect(0, screenH - offsetY, screenW, offsetY);
@@ -180,12 +210,17 @@ class StageManager {
       this.letterbox.rect(0, 0, offsetX, screenH).rect(screenW - offsetX, 0, offsetX, screenH);
     }
     this.letterbox.fill();
+
+    this.updateWorldTransform();
   }
 
-  private update() {
-    const { baseScale: vs } = this._viewport;
+  private updateWorldTransform() {
+    const { baseScale: vs, offsetX, offsetY } = this._viewport;
+    if (!this.isFixedRatio) return;
+
     let finalX = this.camera.x, finalY = this.camera.y, finalZoom = this.camera.zoom, finalRotation = this.camera.rotation;
     const time = performance.now();
+    
     this.modifiers.forEach(mod => {
       const offset = mod(time);
       if (offset.x !== undefined) finalX += offset.x;
@@ -194,14 +229,17 @@ class StageManager {
       if (offset.rotation !== undefined) finalRotation += offset.rotation;
     });
 
-    if (this.isFixedRatio) {
-      this.world.scale.set(vs * finalZoom);
-      this.world.rotation = finalRotation;
-      this.world.pivot.set((this.designWidth / 2) + finalX, (this.designHeight / 2) + finalY);
-      this.world.position.set(readerApp.pixiApp.screen.width / 2, readerApp.pixiApp.screen.height / 2);
-    } else {
-      this.world.scale.set(1); this.world.rotation = 0; this.world.pivot.set(0, 0); this.world.position.set(0, 0);
-    }
+    // 核心修正：缩放应该叠加基础比例和相机缩放
+    this.world.scale.set(vs * finalZoom);
+    this.world.rotation = finalRotation;
+    // Pivot 依然在设计空间的中心
+    this.world.pivot.set((this.designWidth / 2) + finalX, (this.designHeight / 2) + finalY);
+    // Position 始终对齐画布物理中心
+    this.world.position.set(offsetX + (this.designWidth * vs) / 2, offsetY + (this.designHeight * vs) / 2);
+  }
+
+  private update() {
+    this.updateWorldTransform();
   }
 }
 

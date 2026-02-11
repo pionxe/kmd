@@ -8,7 +8,7 @@ import * as monaco from 'monaco-editor';
 import { registerKMDLanguage } from '../core/editor/kmd-lang';
 import { parser } from '../core/parser/Parser';
 
-// 初始化语言
+// 初始化语言 (幂等)
 registerKMDLanguage();
 
 const props = defineProps<{
@@ -19,9 +19,10 @@ const emit = defineEmits(['update:modelValue', 'change']);
 
 const editorContainer = ref<HTMLElement | null>(null);
 let editor: monaco.editor.IStandaloneCodeEditor | null = null;
+let isDisposed = false;
 
 const validateModel = (value: string) => {
-  if (!editor) return;
+  if (!editor || isDisposed) return;
   const model = editor.getModel();
   if (!model) return;
 
@@ -39,11 +40,14 @@ const validateModel = (value: string) => {
     };
   });
 
-  monaco.editor.setModelMarkers(model, 'kmd', markers);
+  if (!isDisposed) {
+    monaco.editor.setModelMarkers(model, 'kmd', markers);
+  }
 };
 
 onMounted(() => {
   if (!editorContainer.value) return;
+  isDisposed = false;
 
   editor = monaco.editor.create(editorContainer.value, {
     value: props.modelValue,
@@ -64,6 +68,7 @@ onMounted(() => {
 
   // 监听编辑内容变化
   editor.onDidChangeModelContent(() => {
+    if (isDisposed) return;
     const value = editor?.getValue() || '';
     emit('update:modelValue', value);
     emit('change', value);
@@ -76,14 +81,26 @@ onMounted(() => {
 
 // 支持外部 modelValue 变化（如加载示例文件）
 watch(() => props.modelValue, (newVal) => {
-  if (editor && newVal !== editor.getValue()) {
+  if (editor && !isDisposed && newVal !== editor.getValue()) {
     editor.setValue(newVal);
     validateModel(newVal);
   }
 });
 
 onUnmounted(() => {
-  editor?.dispose();
+  isDisposed = true;
+  if (editor) {
+    const model = editor.getModel();
+    if (model) {
+      try {
+        monaco.editor.setModelMarkers(model, 'kmd', []);
+      } catch (e) {}
+    }
+    try {
+      editor.dispose();
+    } catch (e) {}
+    editor = null;
+  }
 });
 </script>
 

@@ -7,6 +7,7 @@ import { EffectProcessor } from "./effects/EffectProcessor";
 import { TokenWrapper } from "./TokenWrapper"; 
 import { KineticChar } from "./KineticChar"; 
 import { stageManager } from "./stage/StageManager";
+import { useEditorStore } from "../store/editorStore";
 
 import type { KMDParagraphData, BlockOptions } from "./parser/types";
 import type { MarkerMap } from "./layout/types";
@@ -25,6 +26,10 @@ export class KineticText extends Container {
   public tokens: TokenWrapper[] = [];
   private _pendingGlobalEffects: any[] = [];
   private _allCharsCached: KineticChar[] = [];
+  private _stopRequested: boolean = false;
+  
+  public logicalHeight: number = 0; // 记录在布局引擎中的逻辑高度占用
+  public isAutoLayout: boolean = true; // 标记是否由引擎自动控制位置
 
   constructor(baseOptions: KineticTextOptions) {
     super();
@@ -77,9 +82,11 @@ export class KineticText extends Container {
     this._pendingGlobalEffects = globalEffects as any[];
     Object.assign(this._options, blockOptions);
 
+    const store = useEditorStore();
     const baseStyle = new TextStyle({ 
         fontSize: this._options.fontSize, 
-        fill: "#ffffff",
+      fill: store.canvasConfig.fontColor,
+      fontFamily: store.canvasConfig.fontFamily,
         padding: 0 // 核心：必须强制为 0 以保证 ascent/height 比例精确
     });
     const { stream: layoutStream } = LayoutStreamBuilder.build(tokens, baseStyle, globalEffects);
@@ -205,7 +212,12 @@ export class KineticText extends Container {
     });
   }
 
+  public stop() {
+    this._stopRequested = true;
+  }
+
   public async play(options: { speed?: number; mode?: string; onAdvance?: () => void } = {}): Promise<{ skipAutoPause?: boolean }> {
+    this._stopRequested = false;
     return this._playInternal(this._allCharsCached, 0, options);
   }
 
@@ -220,6 +232,8 @@ export class KineticText extends Container {
     let groupSpeedMultiplier = 1.0;      // 组内局部速度
 
     for (let i = 0; i < allChars.length; i++) {
+      if (this._stopRequested) return { skipAutoPause: true };
+
       const char = allChars[i]!;
       const realIdx = i + absoluteOffset;
       const isNewLine = char.isNewLine || char.text === "\n";
@@ -278,6 +292,8 @@ export class KineticText extends Container {
       // 执行演出：如果是 Go 模式，不等待
       // executePerformance 将处理指令应用
       const perfRes = await this.executePerformance(char, isInstantGo, realIdx);
+      if (this._stopRequested) return { skipAutoPause: true };
+
       if (perfRes.speedMultiplier !== undefined) {
           groupSpeedMultiplier = perfRes.speedMultiplier;
       }
@@ -293,11 +309,11 @@ export class KineticText extends Container {
               if (targetChar && (targetChar.isNewLine || targetChar.text === "\n")) { nextLineIdx = j; break; }
           }
           if (nextLineIdx !== -1) {
+            if (this._stopRequested) return { skipAutoPause: true };
               this._playInternal(allChars.slice(nextLineIdx + 1), absoluteOffset + nextLineIdx + 1, { ...options, onAdvance: undefined }, true);
               const thisLineRemaining = allChars.slice(i + 1, nextLineIdx + 1);
               // 并发处理本行剩余部分
-              this._playInternal(thisLineRemaining, absoluteOffset + i + 1, { ...options, onAdvance: undefined }, true);
-              return { skipAutoPause: lastWasInstantGo };
+            return this._playInternal(thisLineRemaining, absoluteOffset + i + 1, { ...options, onAdvance: undefined }, true);
           }
       }
 
@@ -306,6 +322,7 @@ export class KineticText extends Container {
               const breathingDelay = currentRevealSpeed * 10;
               await new Promise(resolve => setTimeout(resolve, breathingDelay));
           }
+        if (this._stopRequested) return { skipAutoPause: true };
           continue;
       }
 
@@ -320,6 +337,7 @@ export class KineticText extends Container {
               await new Promise(resolve => setTimeout(resolve, waitTime));
           }
       }
+      if (this._stopRequested) return { skipAutoPause: true };
 
       // 5. 检查 Token 边界以处理 Group 级逻辑重置
       const nextChar = allChars[i + 1];

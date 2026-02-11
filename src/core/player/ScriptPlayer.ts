@@ -58,13 +58,40 @@ export class ScriptPlayer {
     }
   }
 
+  public get getMetadata() {
+    return this.metadata;
+  }
+
+  public get mode() {
+    return this.currentMode;
+  }
+
+  public updateConfig(config: { mode?: string; designWidth?: number; designHeight?: number }) {
+    if (config.mode) {
+      this.setMode(config.mode as any);
+    }
+    if (config.designWidth || config.designHeight) {
+      stageManager.setDesignResolution(
+        config.designWidth || this.metadata.designWidth || 1920,
+        config.designHeight || this.metadata.designHeight || 1080
+      );
+    }
+  }
+
   public setMode(mode: "stage" | "scroll" | "page") {
     this.currentMode = mode;
     stageManager.setMode(mode === "stage" ? "stage" : "scroll");
   }
 
+  public async stop() {
+    this.isAutoPlaying = false;
+    clearTimeout(this.autoPlayTimer);
+    await this.clearScreen();
+  }
+
   public async clearScreen() {
     if (this.activeTexts.length === 0) return;
+    this.activeTexts.forEach(kt => kt.stop());
     await Promise.all(this.activeTexts.map(kt => 
       gsap.to(kt, { alpha: 0, duration: 0.3 }).then(() => kt.destroy({ children: true }))
     ));
@@ -126,10 +153,15 @@ export class ScriptPlayer {
     
     const align = (kt as any)._options.align;
     const maxWidth = (kt as any)._options.maxWidth;
+    
+    // 根据模式决定是否开启自动布局流
     if (this.currentMode === "stage" || this.currentMode === "scroll") {
+        kt.isAutoLayout = true;
         kt.x = align === "center" ? (dWidth - maxWidth) / 2 : dWidth * 0.1;
         kt.y = currentY;
     } else {
+        // Page 模式通常被视为绝对/固定展示
+        kt.isAutoLayout = false;
         kt.x = align === "center" ? (dWidth - kt.getLayoutWidth()) / 2 : dWidth * 0.1;
         kt.y = dHeight * 0.7;
     }
@@ -182,3 +214,5 @@ export class ScriptPlayer {
     }
   }
 }
+
+export const scriptPlayer = new ScriptPlayer(stageManager.contentLayer);
