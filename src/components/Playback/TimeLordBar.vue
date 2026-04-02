@@ -1,8 +1,12 @@
 <template>
   <div class="time-lord-bar">
     <!-- 播放/暂停按钮 -->
-    <button class="play-btn" @click="togglePlay" :title="isPlaying ? '暂停 (Space)' : '播放 (Space)'">
-      {{ isPlaying ? '⏸' : '▶' }}
+    <button
+      class="play-btn"
+      @click="togglePlay"
+      :title="isPlaying ? '暂停 (Space)' : '播放 (Space)'"
+    >
+      {{ isPlaying ? "⏸" : "▶" }}
     </button>
 
     <!-- 时间轴（可拖拽）-->
@@ -18,10 +22,7 @@
       ></div>
 
       <!-- 播放头 -->
-      <div
-        class="playhead"
-        :style="{ left: playheadPos + '%' }"
-      >
+      <div class="playhead" :style="{ left: playheadPos + '%' }">
         <div class="playhead-handle"></div>
       </div>
     </div>
@@ -35,19 +36,22 @@
     <!-- 速度控制 -->
     <div class="speed-group">
       <button
-        v-for="speed in [0.5, 1, 2]" :key="speed"
+        v-for="speed in [0.5, 1, 2]"
+        :key="speed"
         class="speed-btn"
         :class="{ active: store.playbackSpeed === speed }"
         @click="store.setPlaybackSpeed(speed)"
-      >{{ speed }}x</button>
+      >
+        {{ speed }}x
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useEditorStore } from '../../store/editorStore';
-import { scriptPlayer } from '../../core/player/ScriptPlayer';
+import { ref, computed } from "vue";
+import { useEditorStore } from "../../store/editorStore";
+import { scriptPlayer } from "../../core/player/ScriptPlayer";
 
 const store = useEditorStore();
 const trackRef = ref<HTMLElement | null>(null);
@@ -68,8 +72,8 @@ const playheadPos = computed(() => {
 const getBlockStyle = (m: any) => {
   if (store.totalDuration === 0) return {};
   return {
-    left: (m.startTime / store.totalDuration) * 100 + '%',
-    width: (m.duration / store.totalDuration) * 100 + '%'
+    left: (m.startTime / store.totalDuration) * 100 + "%",
+    width: (m.duration / store.totalDuration) * 100 + "%",
   };
 };
 
@@ -78,7 +82,7 @@ const formatTime = (ms: number) => {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   const dec = Math.floor((ms % 1000) / 100);
-  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${dec}`;
+  return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}.${dec}`;
 };
 
 // --- Scrubbing 交互 ---
@@ -89,8 +93,8 @@ const handleScrubStart = (e: MouseEvent) => {
   wasPlaying.value = scriptPlayer.autoPlay;
   scriptPlayer.pauseSegment();
   updateScrub(e);
-  window.addEventListener('mousemove', handleScrubMove);
-  window.addEventListener('mouseup', handleScrubEnd);
+  window.addEventListener("mousemove", handleScrubMove);
+  window.addEventListener("mouseup", handleScrubEnd);
 };
 
 const handleScrubMove = (e: MouseEvent) => {
@@ -103,20 +107,22 @@ const updateScrub = (e: MouseEvent) => {
   let x = e.clientX - rect.left;
   let ratio = Math.max(0, Math.min(1, x / rect.width));
   const targetTime = ratio * store.totalDuration;
-  
+
   store.currentTime = targetTime;
 };
 
 const handleScrubEnd = () => {
   if (!isScrubbing.value) return;
   isScrubbing.value = false;
-  window.removeEventListener('mousemove', handleScrubMove);
-  window.removeEventListener('mouseup', handleScrubEnd);
+  window.removeEventListener("mousemove", handleScrubMove);
+  window.removeEventListener("mouseup", handleScrubEnd);
 
   // 精确时间跳转
   const targetTime = store.currentTime;
   const targetSeconds = targetTime / 1000;
-  console.log(`[UI-Jump] Scrub ended at ${targetTime.toFixed(0)}ms → seekToTime(${targetSeconds.toFixed(2)}s)`);
+  console.log(
+    `[UI-Jump] Scrub ended at ${targetTime.toFixed(0)}ms → seekToTime(${targetSeconds.toFixed(2)}s)`,
+  );
   scriptPlayer.seekToTime(targetSeconds);
   // F7: 恢复拖拽前的播放状态
   if (wasPlaying.value) scriptPlayer.playSegment();
@@ -183,11 +189,11 @@ const handleScrubEnd = () => {
   height: 10px;
   background: var(--accent-primary);
   border-radius: 50%;
-  box-shadow: 0 0 5px rgba(0,0,0,0.5);
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
 }
 
 .time-info {
-  font-family: 'Fira Code', monospace;
+  font-family: "Fira Code", monospace;
   font-size: 11px;
   color: var(--accent-primary);
   min-width: 100px;
@@ -211,7 +217,9 @@ const handleScrubEnd = () => {
   justify-content: center;
   flex-shrink: 0;
 }
-.play-btn:hover { background: var(--bg-active); }
+.play-btn:hover {
+  background: var(--bg-active);
+}
 
 .speed-group {
   display: flex;
@@ -228,7 +236,10 @@ const handleScrubEnd = () => {
   border-radius: 2px;
   cursor: pointer;
 }
-.speed-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+.speed-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
 .speed-btn.active {
   background: var(--accent-primary);
   border-color: var(--accent-primary);

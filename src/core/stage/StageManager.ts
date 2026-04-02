@@ -60,7 +60,7 @@ class StageManager {
 
   public init() {
     if (this.isInitialized) return;
-    
+
     const stage = readerApp.pixiApp.stage;
     stage.addChild(this.world);
     stage.addChild(this.uiLayer);
@@ -68,7 +68,7 @@ class StageManager {
     this.resize();
     readerApp.pixiApp.renderer.on("resize", () => this.resize());
     readerApp.pixiApp.ticker.add(this.update, this);
-    
+
     this.isInitialized = true;
   }
 
@@ -153,14 +153,14 @@ class StageManager {
     const fn = this.registry.get(name);
     if (fn) {
       const before = this.getSnapshot();
-      
+
       // 参数预解析
       const resolvedParams: any = {};
       Object.entries(params).forEach(([key, val]) => {
         if (["duration", "d", "2"].includes(key) || (name !== "cam.move" && key === "1")) {
-           resolvedParams[key] = this.resolveValue(val, 0);
+          resolvedParams[key] = this.resolveValue(val, 0);
         } else {
-           resolvedParams[key] = this.resolveValue(val, (before as any)[key] ?? 0);
+          resolvedParams[key] = this.resolveValue(val, (before as any)[key] ?? 0);
         }
       });
 

@@ -1,21 +1,27 @@
 <template>
   <div class="view-container monitor-view">
     <div class="tabs">
-      <div 
-        class="tab" 
-        :class="{ active: activeTab === 'audit' }" 
+      <div
+        class="tab"
+        :class="{ active: activeTab === 'audit' }"
         @click="activeTab = 'audit'"
-      >镜头审计</div>
-      <div 
-        class="tab" 
-        :class="{ active: activeTab === 'vars' }" 
+      >
+        镜头审计
+      </div>
+      <div
+        class="tab"
+        :class="{ active: activeTab === 'vars' }"
         @click="activeTab = 'vars'"
-      >实时变量</div>
-      <div 
-        class="tab" 
-        :class="{ active: activeTab === 'layout' }" 
+      >
+        实时变量
+      </div>
+      <div
+        class="tab"
+        :class="{ active: activeTab === 'layout' }"
         @click="activeTab = 'layout'"
-      >布局审计</div>
+      >
+        布局审计
+      </div>
     </div>
 
     <div class="tab-content scroll-content">
@@ -27,7 +33,7 @@
           <div class="params">{{ JSON.stringify(item.params) }}</div>
         </div>
       </div>
-      
+
       <div v-if="activeTab === 'vars'" class="vars-list">
         <div class="kmd-group">
           <div class="kmd-group-header">编辑器同步状态</div>
@@ -38,31 +44,49 @@
             </div>
             <div class="debug-row">
               <span>Is Playing</span>
-              <span class="value-box" :class="{ active: store.isPlaying }">{{ store.isPlaying }}</span>
+              <span class="value-box" :class="{ active: store.isPlaying }">{{
+                store.isPlaying
+              }}</span>
             </div>
           </div>
         </div>
 
         <div class="kmd-group">
           <div class="kmd-group-header">实时全局变量</div>
-          <div v-if="Object.keys(markers).length === 0" class="empty">无变量数据</div>
+          <div v-if="Object.keys(markers).length === 0" class="empty">
+            无变量数据
+          </div>
           <div v-for="(val, key) in markers" :key="key" class="var-item">
             <span class="var-key">{{ key }}</span>
-            <span class="var-val">{{ val.x.toFixed(1) }}, {{ val.y.toFixed(1) }}</span>
+            <span class="var-val"
+              >{{ val.x.toFixed(1) }}, {{ val.y.toFixed(1) }}</span
+            >
           </div>
         </div>
       </div>
 
       <div v-if="activeTab === 'layout'" class="layout-audit">
-        <div v-if="store.layoutAuditLog.length === 0" class="empty">暂无布局变更记录</div>
-        <div v-for="(log, idx) in store.layoutAuditLog" :key="idx" class="log-item" :class="log.action">
+        <div v-if="store.layoutAuditLog.length === 0" class="empty">
+          暂无布局变更记录
+        </div>
+        <div
+          v-for="(log, idx) in store.layoutAuditLog"
+          :key="idx"
+          class="log-item"
+          :class="log.action"
+        >
           <div class="log-header">
             <span class="time">{{ log.time }}</span>
             <span class="action">{{ log.action }}</span>
           </div>
           <div class="log-details">
             <div v-if="log.actualSizes" class="sizes-info">
-              ID: {{ log.nodeId }} | 实际比例: {{ (log.actualSizes as number[]).map(s => s.toFixed(1) + '%').join(' : ') }}
+              ID: {{ log.nodeId }} | 实际比例:
+              {{
+                (log.actualSizes as number[])
+                  .map((s) => s.toFixed(1) + "%")
+                  .join(" : ")
+              }}
             </div>
             <div v-else class="tree-diff">
               <details>
@@ -78,13 +102,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import { stageManager } from '../core/stage/StageManager';
-import { layout } from '../core/layout/LayoutEngine';
-import { useEditorStore } from '../store/editorStore';
+import { ref, onMounted, onUnmounted } from "vue";
+import { stageManager } from "../core/stage/StageManager";
+import { layout } from "../core/layout/LayoutEngine";
+import { useEditorStore } from "../store/editorStore";
 
 const store = useEditorStore();
-const activeTab = ref('audit');
+const activeTab = ref("audit");
 const auditLog = ref<any[]>([]);
 const markers = ref<any>({});
 
@@ -113,7 +137,7 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100%;
   background: var(--bg-sidebar);
-  font-family: 'Fira Code', monospace;
+  font-family: "Fira Code", monospace;
   font-size: 11px;
 }
 
@@ -173,7 +197,7 @@ onUnmounted(() => {
   color: #b5cea8;
   padding: 2px 6px;
   border-radius: 3px;
-  font-family: 'Fira Code', monospace;
+  font-family: "Fira Code", monospace;
 }
 
 .value-box.active {
@@ -194,9 +218,20 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--border-main);
 }
 
-.time { color: var(--accent-secondary); margin-right: 8px; }
-.effect, .action { color: #dcdcaa; font-weight: bold; }
-.params { color: #ce9178; font-size: 10px; margin-top: 2px; }
+.time {
+  color: var(--accent-secondary);
+  margin-right: 8px;
+}
+.effect,
+.action {
+  color: #dcdcaa;
+  font-weight: bold;
+}
+.params {
+  color: #ce9178;
+  font-size: 10px;
+  margin-top: 2px;
+}
 
 .REALTIME_RESIZE {
   opacity: 0.6;
@@ -238,6 +273,10 @@ onUnmounted(() => {
   margin-bottom: 4px;
 }
 
-.var-key { color: #9cdcfe; }
-.var-val { color: #b5cea8; }
+.var-key {
+  color: #9cdcfe;
+}
+.var-val {
+  color: #b5cea8;
+}
 </style>

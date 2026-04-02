@@ -25,7 +25,7 @@ const p = result.paragraphs[0]!;
 
 console.log("Block Options Stage Instructions:");
 // 检查 [cam.move(var.intro_x, 0)] 是否保留了原始变量名
-console.log(JSON.stringify(p.blockOptions)); 
+console.log(JSON.stringify(p.blockOptions));
 // 注意：目前解析器将 blockOptions 中的 cam.move 存在了 globalEffects 里
 console.log("Global Effects:", JSON.stringify(p.globalEffects));
 

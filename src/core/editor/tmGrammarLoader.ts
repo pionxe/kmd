@@ -36,31 +36,31 @@ class TmState implements monaco.languages.IState {
 function scopeToToken(scopes: string[]): string {
   for (let i = scopes.length - 1; i >= 0; i--) {
     const s = scopes[i]!;
-    if (s.includes('keyword.operator.at'))          return 'operator.at';
-    if (s.includes('keyword.operator.advance'))     return 'keyword.operator';
-    if (s.includes('keyword.operator.speed'))       return 'keyword.operator';
-    if (s.includes('keyword.operator.pause'))       return 'keyword.operator';
-    if (s.includes('keyword.operator.async'))       return 'keyword.operator';
-    if (s.includes('keyword.control'))              return 'keyword.operator';
-    if (s.includes('markup.heading'))               return 'keyword.header';
+    if (s.includes('keyword.operator.at')) return 'operator.at';
+    if (s.includes('keyword.operator.advance')) return 'keyword.operator';
+    if (s.includes('keyword.operator.speed')) return 'keyword.operator';
+    if (s.includes('keyword.operator.pause')) return 'keyword.operator';
+    if (s.includes('keyword.operator.async')) return 'keyword.operator';
+    if (s.includes('keyword.control')) return 'keyword.operator';
+    if (s.includes('markup.heading')) return 'keyword.header';
     if (s.includes('punctuation.definition.heading')) return 'keyword.header';
-    if (s.includes('keyword.control.scene-clear'))  return 'keyword.scene-clear';
+    if (s.includes('keyword.control.scene-clear')) return 'keyword.scene-clear';
     if (s.includes('punctuation.definition.frontmatter')) return 'keyword.frontmatter.delimiter';
-    if (s.includes('entity.name.tag'))              return 'type.identifier';
-    if (s.includes('storage.modifier.level'))       return 'keyword.level';
-    if (s.includes('keyword.other.effect-prefix'))  return 'keyword.prefix';
-    if (s.includes('keyword.other.namespace'))      return 'keyword.prefix';
-    if (s.includes('variable.parameter'))           return 'variable.parameter';
-    if (s.includes('variable.other'))               return 'variable.predefined';
-    if (s.includes('constant.numeric'))             return 'number';
-    if (s.includes('string.quoted'))                return 'string.quote';
-    if (s.includes('string.unquoted'))              return 'string';
-    if (s.includes('markup.bold'))                  return 'string.strong';
-    if (s.includes('markup.italic'))                return 'string.italic';
-    if (s.includes('entity.name.function'))         return 'function';
-    if (s.includes('punctuation.definition'))       return 'delimiter.parenthesis';
-    if (s.includes('comment'))                      return 'comment';
-    if (s.includes('constant.character.escape'))    return 'string.escape';
+    if (s.includes('entity.name.tag')) return 'type.identifier';
+    if (s.includes('storage.modifier.level')) return 'keyword.level';
+    if (s.includes('keyword.other.effect-prefix')) return 'keyword.prefix';
+    if (s.includes('keyword.other.namespace')) return 'keyword.prefix';
+    if (s.includes('variable.parameter')) return 'variable.parameter';
+    if (s.includes('variable.other')) return 'variable.predefined';
+    if (s.includes('constant.numeric')) return 'number';
+    if (s.includes('string.quoted')) return 'string.quote';
+    if (s.includes('string.unquoted')) return 'string';
+    if (s.includes('markup.bold')) return 'string.strong';
+    if (s.includes('markup.italic')) return 'string.italic';
+    if (s.includes('entity.name.function')) return 'function';
+    if (s.includes('punctuation.definition')) return 'delimiter.parenthesis';
+    if (s.includes('comment')) return 'comment';
+    if (s.includes('constant.character.escape')) return 'string.escape';
   }
   return '';
 }

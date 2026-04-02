@@ -15,9 +15,9 @@ function assert(condition: boolean, message: string) {
 try {
     const kmdPath = path.resolve(process.cwd(), "public/final-test.kmd");
     const kmdSource = fs.readFileSync(kmdPath, "utf-8");
-    
+
     const result = parser.parse(kmdSource);
-    
+
     // 5.0 验证 BlockOptions 中的 align=center
     const p1 = result.paragraphs[0];
     assert(p1.blockOptions.align === "center", "Line 15: BlockOptions should contain align=center");
@@ -42,11 +42,11 @@ try {
     // 验证速度语法糖 (~, ^) 与 braceGroupId
     const pSugar = result.paragraphs.find(p => p.tokens.some(t => t.content.includes("语速")));
     assert(pSugar?.tokens.some(t => t.sugar && t.sugar.length > 0 && t.sugar[0].name === "slow"), "Line 59: Standalone slow sugar (~) missing or name incorrect");
-    
+
     const waveToken = pSugar?.tokens.find(t => t.content.includes("语速"));
     assert(waveToken?.isBraced === true, "Line 59: '语速' should be marked as isBraced");
     assert(waveToken?.braceGroupId !== undefined, "Line 59: '语速' should have a braceGroupId");
-    
+
     // 验证组内映射：'变' 应该也有 wave 效果
     const slowToken = pSugar?.tokens.find(t => t.content.includes("变"));
     assert(slowToken?.effects.some(e => e.name === "wave"), "Line 59: '变' should inherit wave effect via group mapping");

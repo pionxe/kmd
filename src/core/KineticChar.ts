@@ -8,8 +8,8 @@ export interface TransformOffset {
   rotation: number;
   scaleX: number;
   scaleY: number;
-  alpha: number; 
-  tint: number; 
+  alpha: number;
+  tint: number;
 }
 
 interface Modifier {
@@ -36,11 +36,11 @@ export class KineticChar extends Text {
   public inFlow: boolean = true;
   public stageInstructions: any[] = [];
   public visualEffects: any[] = [];
-  public timingSugars: any[] = []; 
-  public timingResults: { delayOverride?: number; speedMultiplier?: number } = {}; 
+  public timingSugars: any[] = [];
+  public timingResults: { delayOverride?: number; speedMultiplier?: number } = {};
   public tokenIdx: number = -1;
-  public isNewLine: boolean = false; 
-  public line?: number; 
+  public isNewLine: boolean = false;
+  public line?: number;
 
   public pendingEnterConfig?: EffectConfig;
 

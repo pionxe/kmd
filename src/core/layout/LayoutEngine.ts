@@ -36,7 +36,7 @@ class LayoutEngine {
     this.startY = startY;
     this.maxWidth = readerApp.pixiApp.screen.width * 0.8;
     this.reset(); // 仅在初次或容器变更时重置
-    
+
     if (!this.isEventsBound) {
       readerApp.pixiApp.ticker.add(this.update, this);
       readerApp.pixiApp.renderer.on("resize", () => {
@@ -68,7 +68,7 @@ class LayoutEngine {
   public loadState(state: LayoutState) {
     this.currentY = state.currentY;
     this.targetScrollY = state.targetScrollY;
-    
+
     this.globalMarkers.clear();
     Object.entries(state.globalMarkers).forEach(([key, val]) => {
       this.globalMarkers.set(key, { ...val });
@@ -92,7 +92,7 @@ class LayoutEngine {
     // 计算新的最大宽度 (响应式)
     const newMaxWidth = screenW * 0.8;
     const needsRebuild = Math.abs(newMaxWidth - this.maxWidth) > 10; // 增加容差，防止微小抖动
-    
+
     // 记录新的全局最大宽度
     this.maxWidth = newMaxWidth;
 
@@ -138,7 +138,7 @@ class LayoutEngine {
   public reset(clearVariables: boolean = false) {
     this.currentY = this.startY;
     this.targetScrollY = 0;
-    
+
     if (clearVariables) {
       this.globalMarkers.clear();
     } else {
@@ -149,7 +149,7 @@ class LayoutEngine {
         }
       }
     }
-    
+
     TextLayoutEngine.lastAuditLog = [];
   }
 
@@ -194,7 +194,7 @@ class LayoutEngine {
 
     const line = new KineticText(finalOptions);
     await line.init(kmdString);
-    
+
     line.x = posX;
     line.y = this.currentY;
     return line;

@@ -1,7 +1,7 @@
 import { Container, Rectangle } from "pixi.js";
 import { EffectProcessor } from "./effects/EffectProcessor";
-import { TokenWrapper } from "./TokenWrapper"; 
-import { KineticChar } from "./KineticChar"; 
+import { TokenWrapper } from "./TokenWrapper";
+import { KineticChar } from "./KineticChar";
 import { TextBuilder } from "./render/text/TextBuilder";
 import { TextPlayer } from "./render/text/TextPlayer";
 
@@ -23,9 +23,9 @@ export class KineticText extends Container {
   public _pendingGlobalEffects: any[] = [];
   public _allCharsCached: KineticChar[] = [];
   public _stopRequested: boolean = false;
-  
-  public logicalHeight: number = 0; 
-  public isAutoLayout: boolean = true; 
+
+  public logicalHeight: number = 0;
+  public isAutoLayout: boolean = true;
 
   constructor(baseOptions: KineticTextOptions) {
     super();
@@ -50,7 +50,7 @@ export class KineticText extends Container {
   public async init(kmdString: string, startLine: number = 0) {
     this._sourceKMD = kmdString;
     if ((document as any).fonts) {
-        await (document as any).fonts.ready;
+      await (document as any).fonts.ready;
     }
     await TextBuilder.build(this, kmdString, startLine);
   }
@@ -66,7 +66,7 @@ export class KineticText extends Container {
       align: "left", letterSpacing: 0, speed: 50, mode: "normal",
       ...this._currentOptions,
     } as FullOptions;
-    
+
     this.tokens.forEach((t) => t.destroy({ children: true }));
     this.removeChildren();
     await TextBuilder.build(this, this._sourceKMD, startLine);

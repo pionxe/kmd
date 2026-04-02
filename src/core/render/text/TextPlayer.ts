@@ -639,8 +639,8 @@ export class TextPlayer {
    * 核心重构：带时间上报的播放逻辑
    */
   public static async play(
-    target: any, 
-    allChars: KineticChar[], 
+    target: any,
+    allChars: KineticChar[],
     tokens: TokenWrapper[],
     absStartTime: number,
     options: { speed?: number; mode?: string; onAdvance?: () => void } = {}
@@ -648,7 +648,7 @@ export class TextPlayer {
     const store = useEditorStore();
     let baseRevealSpeed = options.speed ?? target._options.speed ?? 50;
     let virtualElapsed = 0;
-    
+
     let lastWasInstantGo = false;
     let persistentSpeedMultiplier = 1.0;
     let groupSpeedMultiplier = 1.0;
@@ -659,25 +659,25 @@ export class TextPlayer {
       const char = allChars[i]!;
       const realIdx = i;
       const isNewLine = char.isNewLine || char.text === "\n";
-      
+
       // 1. 更新行号 (仅对可见字符)
       if (char.line !== undefined && char.text.trim()) {
-        store.currentLine = char.line + 1; 
+        store.currentLine = char.line + 1;
       }
 
       // 2. 处理行级重置
       if (isNewLine) {
-          persistentSpeedMultiplier = 1.0;
-          groupSpeedMultiplier = 1.0;
-          lastWasInstantGo = false;
+        persistentSpeedMultiplier = 1.0;
+        groupSpeedMultiplier = 1.0;
+        lastWasInstantGo = false;
       }
 
       // 3. 检查节奏糖衣
       const timing = EffectProcessor.resolveTiming(char.timingSugars);
       if (timing.speedMultiplier !== undefined) {
-          persistentSpeedMultiplier = timing.speedMultiplier;
+        persistentSpeedMultiplier = timing.speedMultiplier;
       }
-      
+
       const delayOverride = timing.delayOverride;
       const advanceLevel = timing.advanceLevel;
 
@@ -687,7 +687,7 @@ export class TextPlayer {
       // 4. 执行指令并捕获速度变化
       const charEffectRes = await EffectProcessor.applyCharEffects(char, char.visualEffects, realIdx);
       if (charEffectRes.speedMultiplier !== undefined) {
-          persistentSpeedMultiplier = charEffectRes.speedMultiplier;
+        persistentSpeedMultiplier = charEffectRes.speedMultiplier;
       }
 
       // 5. 更新同步时间
@@ -695,84 +695,84 @@ export class TextPlayer {
 
       // 6. 渲染触发与防闪烁
       if (char.text.trim()) {
-          char.visible = true; 
-          
-          // 核心修复：无论是 instant 还是 normal，都触发 applyEffect
-          // 但通过 syncProperties 确保特效中的初始状态（如 alpha=0, scale=0）立即生效
-          const applyEffect = () => {
-            if (char.pendingEnterConfig) {
-              effectManager.apply(char, char.pendingEnterConfig.name, char.pendingEnterConfig.params);
-            } else {
-              effectManager.apply(char, "fadeIn", { duration: 0.3 });
-            }
-            char.syncProperties(); // 强制立即同步一次，让特效设置的 Initial State (t=0) 生效
-          };
+        char.visible = true;
 
-          applyEffect();
+        // 核心修复：无论是 instant 还是 normal，都触发 applyEffect
+        // 但通过 syncProperties 确保特效中的初始状态（如 alpha=0, scale=0）立即生效
+        const applyEffect = () => {
+          if (char.pendingEnterConfig) {
+            effectManager.apply(char, char.pendingEnterConfig.name, char.pendingEnterConfig.params);
+          } else {
+            effectManager.apply(char, "fadeIn", { duration: 0.3 });
+          }
+          char.syncProperties(); // 强制立即同步一次，让特效设置的 Initial State (t=0) 生效
+        };
+
+        applyEffect();
       }
 
       // 7. 执行演出 (Stage & Group Effects)
       const perfTask = this.executePerformance(target, char, isInstantGo, realIdx, tokens, allChars);
-      
+
       // 核心修复：如果是并发模式，不等待演出完成，直接进入下一个循环
       if (!isInstantGo) {
         const perfRes = await perfTask;
         if (target._stopRequested) return { skipAutoPause: true };
         if (perfRes && perfRes.speedMultiplier !== undefined) groupSpeedMultiplier = perfRes.speedMultiplier;
       } else {
-        perfTask.catch(() => {});
+        perfTask.catch(() => { });
       }
 
       // 8. 信号分流
       if (advanceLevel === "block" && options.onAdvance) {
-          options.onAdvance();
-          options.onAdvance = undefined; 
+        options.onAdvance();
+        options.onAdvance = undefined;
       } else if (advanceLevel === "group") {
-          let nextLineIdx = -1;
-          for(let j=i+1; j<allChars.length; j++) {
-              const targetChar = allChars[j];
-              if (targetChar && (targetChar.isNewLine || targetChar.text === "\n")) { nextLineIdx = j; break; }
-          }
-          if (nextLineIdx !== -1) {
-              if (target._stopRequested) return { skipAutoPause: true };
-              this.play(target, allChars.slice(nextLineIdx + 1), tokens, absStartTime + virtualElapsed, { ...options, onAdvance: undefined });
-              const thisLineRemaining = allChars.slice(i + 1, nextLineIdx + 1);
-              return this.play(target, thisLineRemaining, tokens, absStartTime + virtualElapsed, { ...options, onAdvance: undefined });
-          }
+        let nextLineIdx = -1;
+        for (let j = i + 1; j < allChars.length; j++) {
+          const targetChar = allChars[j];
+          if (targetChar && (targetChar.isNewLine || targetChar.text === "\n")) { nextLineIdx = j; break; }
+        }
+        if (nextLineIdx !== -1) {
+          if (target._stopRequested) return { skipAutoPause: true };
+          this.play(target, allChars.slice(nextLineIdx + 1), tokens, absStartTime + virtualElapsed, { ...options, onAdvance: undefined });
+          const thisLineRemaining = allChars.slice(i + 1, nextLineIdx + 1);
+          return this.play(target, thisLineRemaining, tokens, absStartTime + virtualElapsed, { ...options, onAdvance: undefined });
+        }
       }
 
       // 9. 步进虚拟时间并物理等待
       if (!isInstantGo) {
-          let waitTime = 0;
-          if (delayOverride !== undefined && delayOverride > 0) {
-              waitTime = delayOverride * 1000;
-          } else if (delayOverride === undefined && char.text !== "") {
-              const isPunctuation = /[，。！？]/.test(char.text);
-              const speed = baseRevealSpeed * persistentSpeedMultiplier * groupSpeedMultiplier;
-              waitTime = isPunctuation ? speed * 5 : speed;
-          }
-          
-          if (waitTime > 0) {
-            virtualElapsed += waitTime;
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-          }
+        let waitTime = 0;
+        if (delayOverride !== undefined && delayOverride > 0) {
+          waitTime = delayOverride * 1000;
+        } else if (delayOverride === undefined && char.text !== "") {
+          const isPunctuation = /[，。！？]/.test(char.text);
+          const speed = baseRevealSpeed * persistentSpeedMultiplier * groupSpeedMultiplier;
+          waitTime = isPunctuation ? speed * 5 : speed;
+        }
+
+        if (waitTime > 0) {
+          virtualElapsed += waitTime;
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
       }
 
       if (isNewLine && !isInstantGo) {
-          const breathingDelay = baseRevealSpeed * 10;
-          virtualElapsed += breathingDelay;
-          await new Promise(resolve => setTimeout(resolve, breathingDelay));
+        const breathingDelay = baseRevealSpeed * 10;
+        virtualElapsed += breathingDelay;
+        await new Promise(resolve => setTimeout(resolve, breathingDelay));
       }
 
       // 10. 状态流转准备
       lastWasInstantGo = isSugarGo;
       if (delayOverride !== undefined && delayOverride > 0) {
-          lastWasInstantGo = false;
+        lastWasInstantGo = false;
       }
 
       const nextChar = allChars[i + 1];
       if (!nextChar || nextChar.tokenIdx !== char.tokenIdx) {
-          groupSpeedMultiplier = 1.0;
+        groupSpeedMultiplier = 1.0;
       }
     }
     return { skipAutoPause: lastWasInstantGo };
@@ -784,10 +784,10 @@ export class TextPlayer {
    */
   public static skipToEnd(target: any, allChars: KineticChar[], tokens: TokenWrapper[]) {
     target._stopRequested = true;
-    
+
     allChars.forEach(char => {
       gsap.killTweensOf(char.animOffset);
-      
+
       // 恢复到标准显示态
       char.animOffset.alpha = 1;
       char.animOffset.scaleX = 1;
@@ -795,14 +795,14 @@ export class TextPlayer {
       char.animOffset.x = 0;
       char.animOffset.y = 0;
       char.animOffset.rotation = 0;
-      
+
       char.visible = true;
       char.syncProperties();
     });
 
     // 瞬间应用所有组特效的最终态 (TODO: 如果有复杂的组特效可能需要特殊处理)
     tokens.forEach(_token => {
-       // 目前组特效多为动画，killTweensOf 已经覆盖了大部分情况
+      // 目前组特效多为动画，killTweensOf 已经覆盖了大部分情况
     });
   }
 
@@ -817,29 +817,29 @@ export class TextPlayer {
     _absStartTime: number,
     _options: { speed?: number } = {}
   ) {
-      // 暂时通过将速度设为极小值并跳过所有等待来实现
-      // 在这个模式下，setTimeout(0) 依然会有微小延迟，但在 JS 循环中足够快
-      const store = useEditorStore();
-      
-      for (let i = 0; i < allChars.length; i++) {
-          const char = allChars[i]!;
-          if (char.text.trim()) {
-              char.visible = true;
-              char.animOffset.alpha = 1;
-              char.syncProperties();
-          }
-          
-          // 执行指令但不等待结果
-          for (const instr of char.stageInstructions) {
-              stageManager.apply(instr.type, instr.params);
-          }
-          
-          if (char.line !== undefined && char.text.trim()) {
-              store.currentLine = char.line + 1;
-          }
+    // 暂时通过将速度设为极小值并跳过所有等待来实现
+    // 在这个模式下，setTimeout(0) 依然会有微小延迟，但在 JS 循环中足够快
+    const store = useEditorStore();
+
+    for (let i = 0; i < allChars.length; i++) {
+      const char = allChars[i]!;
+      if (char.text.trim()) {
+        char.visible = true;
+        char.animOffset.alpha = 1;
+        char.syncProperties();
       }
-      
-      this.skipToEnd(target, allChars, tokens);
+
+      // 执行指令但不等待结果
+      for (const instr of char.stageInstructions) {
+        stageManager.apply(instr.type, instr.params);
+      }
+
+      if (char.line !== undefined && char.text.trim()) {
+        store.currentLine = char.line + 1;
+      }
+    }
+
+    this.skipToEnd(target, allChars, tokens);
   }
 
   /**
@@ -864,7 +864,7 @@ export class TextPlayer {
       const timing = EffectProcessor.resolveTiming(char.timingSugars);
       if (timing.speedMultiplier !== undefined) persistentSpeedMultiplier = timing.speedMultiplier;
 
-      if (timing.advanceLevel === "block") return virtualTime; 
+      if (timing.advanceLevel === "block") return virtualTime;
       else if (timing.advanceLevel === "group") return virtualTime;
 
       const isSugarGo = (timing.delayOverride === 0);
@@ -881,7 +881,7 @@ export class TextPlayer {
       const delayOverride = timing.delayOverride;
       if (!isInstantGo && (delayOverride === undefined || delayOverride > 0)) {
         if (char.text !== "") {
-          const wait = delayOverride !== undefined ? delayOverride * 1000 : 
+          const wait = delayOverride !== undefined ? delayOverride * 1000 :
             (/[，。！？]/.test(char.text) ? baseSpeed * persistentSpeedMultiplier * groupSpeedMultiplier * 5 : baseSpeed * persistentSpeedMultiplier * groupSpeedMultiplier);
           virtualTime += wait;
         }
@@ -908,11 +908,11 @@ export class TextPlayer {
       const nextChar = allChars[charIdx + 1];
       const isTokenEnd = !nextChar || nextChar.tokenIdx !== char.tokenIdx;
       if (isTokenEnd) {
-          const wrapper = tokens.find(t => t.tokenIdx === char.tokenIdx);
-          if (wrapper) {
-              const groupRes = await EffectProcessor.applyGroupEffects(wrapper, char.visualEffects);
-              speedMultiplier = groupRes.speedMultiplier;
-          }
+        const wrapper = tokens.find(t => t.tokenIdx === char.tokenIdx);
+        if (wrapper) {
+          const groupRes = await EffectProcessor.applyGroupEffects(wrapper, char.visualEffects);
+          speedMultiplier = groupRes.speedMultiplier;
+        }
       }
     }
     return { speedMultiplier };

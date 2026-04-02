@@ -69,15 +69,15 @@ class ReaderApp {
 
     // 先使用原生 FontFace API 加载，这对 Canvas 渲染中文字体最稳健
     for (const f of fonts) {
-        try {
-            console.log(`[ReaderApp] Native loading: ${f.alias} from ${f.src}`);
-            const fontFace = new FontFace(f.alias, `url(${f.src})`);
-            const loadedFace = await fontFace.load();
-            (document as any).fonts.add(loadedFace);
-            console.log(`[ReaderApp] Font ${f.alias} registered via FontFace API.`);
-        } catch (e) {
-            console.warn(`[ReaderApp] Native load failed for ${f.alias}, will try Pixi Assets:`, e);
-        }
+      try {
+        console.log(`[ReaderApp] Native loading: ${f.alias} from ${f.src}`);
+        const fontFace = new FontFace(f.alias, `url(${f.src})`);
+        const loadedFace = await fontFace.load();
+        (document as any).fonts.add(loadedFace);
+        console.log(`[ReaderApp] Font ${f.alias} registered via FontFace API.`);
+      } catch (e) {
+        console.warn(`[ReaderApp] Native load failed for ${f.alias}, will try Pixi Assets:`, e);
+      }
     }
 
     fonts.forEach((f) => {

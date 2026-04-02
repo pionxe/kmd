@@ -172,9 +172,9 @@ export class EffectProcessor {
 
     // 1. 舞台指令
     for (const config of stageConfigs) {
-       const result = stageManager.apply(config.name, config.params);
-       this.processEffectResult(result, config, finalRes);
-       if ((config.name === "pause" || config.blocking) && result) await result;
+      const result = stageManager.apply(config.name, config.params);
+      this.processEffectResult(result, config, finalRes);
+      if ((config.name === "pause" || config.blocking) && result) await result;
     }
 
     // 2. 视觉链条
@@ -204,12 +204,12 @@ export class EffectProcessor {
         } else if (layoutManager.has(config.name)) {
           // 动态排版接力：如果是一个排版指令但在播放期触发
           if (target instanceof KineticChar) {
-             // 单字位移暂不支持直接 apply，需转换或跳过，通常排版指令对 Group 更有效
+            // 单字位移暂不支持直接 apply，需转换或跳过，通常排版指令对 Group 更有效
           } else {
-             const kt = (target as any).parent instanceof KineticText ? (target as any).parent : null;
-             if (kt && typeof kt.applyDynamicLayout === 'function') {
-                 kt.applyDynamicLayout(config.name, resolved);
-             }
+            const kt = (target as any).parent instanceof KineticText ? (target as any).parent : null;
+            if (kt && typeof kt.applyDynamicLayout === 'function') {
+              kt.applyDynamicLayout(config.name, resolved);
+            }
           }
         }
       }
@@ -225,28 +225,28 @@ export class EffectProcessor {
   public static resolveTiming(sugars: any[]): EffectLogicResult & { advanceLevel?: string } {
     const res: EffectLogicResult & { advanceLevel?: string } = {};
     for (const s of sugars) {
-       if (s.name === "go") {
-         res.advanceLevel = s.level; 
-         res.delayOverride = s.params[0] ?? 0;
-         if (s.level === "group" || s.level === "block") {
-            res.blockAdvanceRequested = true;
-         }
-       }
-       else if (s.name === "slow") {
-         res.speedMultiplier = s.params[0] ?? 2.0;
-         console.log(`[Timing-Trace] Sugar: slow, multiplier: ${res.speedMultiplier}`);
-       }
-       else if (s.name === "fast") {
-         res.speedMultiplier = s.params[0] ?? 0.5;
-         console.log(`[Timing-Trace] Sugar: fast, multiplier: ${res.speedMultiplier}`);
-       }
+      if (s.name === "go") {
+        res.advanceLevel = s.level;
+        res.delayOverride = s.params[0] ?? 0;
+        if (s.level === "group" || s.level === "block") {
+          res.blockAdvanceRequested = true;
+        }
+      }
+      else if (s.name === "slow") {
+        res.speedMultiplier = s.params[0] ?? 2.0;
+        console.log(`[Timing-Trace] Sugar: slow, multiplier: ${res.speedMultiplier}`);
+      }
+      else if (s.name === "fast") {
+        res.speedMultiplier = s.params[0] ?? 0.5;
+        console.log(`[Timing-Trace] Sugar: fast, multiplier: ${res.speedMultiplier}`);
+      }
     }
     return res;
   }
 
   public static async applyCharEffects(char: KineticChar, effects: EffectConfig[], charIndex: number): Promise<EffectLogicResult> {
     const finalRes: EffectLogicResult = {};
-    
+
     // 视觉链执行
     for (const config of effects) {
       const meta = effectManager.getMetadata(config.name);
@@ -257,12 +257,12 @@ export class EffectProcessor {
       // 则跳过应用，因为在 LayoutStreamBuilder 阶段它已经反映在 char.style 中了。
       // 这彻底解决了 big/small 效果叠加两次导致字号变为 81 或 23 的问题。
       if (isStyle && !isBlocking) {
-          continue; 
+        continue;
       }
 
       // 核心修正：如果是非 char 级的阻塞，在单字执行阶段跳过（交给组执行），但不能停止后续样式的应用
       if (isBlocking && config.level !== "char") {
-          break; 
+        break;
       }
 
       const resolved = this.resolveParams(config.params);

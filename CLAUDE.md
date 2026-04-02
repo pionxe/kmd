@@ -39,16 +39,16 @@ Per paragraph rendering:
 
 All are module-level singletons, not Vue-injected:
 
-| Export | File | Purpose |
-|--------|------|---------|
-| `readerApp` | `src/core/App.ts` | Pixi `Application`, font loading |
-| `stageManager` | `src/core/stage/StageManager.ts` | Camera (x/y/zoom/rotation), layers, fixed-ratio letterboxing |
-| `layout` | `src/core/layout/LayoutEngine.ts` | Vertical flow accumulator, global markers, scroll |
-| `parser` | `src/core/parser/Parser.ts` | KMD parser entry point |
-| `scriptPlayer` | `src/core/player/ScriptPlayer.ts` | Multi-paragraph playback + scene-baking |
-| `effectManager` | `src/core/effects/EffectManager.ts` | Visual effect registry with mutex groups |
-| `styleManager` | `src/core/effects/StyleManager.ts` | Style modifier registry |
-| `layoutManager` | `src/core/layout/LayoutManager.ts` | Layout command expander registry |
+| Export          | File                                | Purpose                                                      |
+| --------------- | ----------------------------------- | ------------------------------------------------------------ |
+| `readerApp`     | `src/core/App.ts`                   | Pixi `Application`, font loading                             |
+| `stageManager`  | `src/core/stage/StageManager.ts`    | Camera (x/y/zoom/rotation), layers, fixed-ratio letterboxing |
+| `layout`        | `src/core/layout/LayoutEngine.ts`   | Vertical flow accumulator, global markers, scroll            |
+| `parser`        | `src/core/parser/Parser.ts`         | KMD parser entry point                                       |
+| `scriptPlayer`  | `src/core/player/ScriptPlayer.ts`   | Multi-paragraph playback + scene-baking                      |
+| `effectManager` | `src/core/effects/EffectManager.ts` | Visual effect registry with mutex groups                     |
+| `styleManager`  | `src/core/effects/StyleManager.ts`  | Style modifier registry                                      |
+| `layoutManager` | `src/core/layout/LayoutManager.ts`  | Layout command expander registry                             |
 
 ### Core Subsystems
 

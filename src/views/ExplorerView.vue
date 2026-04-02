@@ -3,23 +3,29 @@
     <!-- Header -->
     <div class="explorer-header">
       <span class="project-name" :title="store.projectHandle?.name ?? ''">
-        {{ store.projectHandle ? store.projectHandle.name : 'EXPLORER' }}
+        {{ store.projectHandle ? store.projectHandle.name : "EXPLORER" }}
       </span>
       <button
         class="open-btn"
         @click="handleOpenFolder"
         :disabled="!isFsaSupported()"
         :title="isFsaSupported() ? '打开文件夹' : '需要 Chrome 或 Edge 浏览器'"
-      >⊕</button>
+      >
+        ⊕
+      </button>
     </div>
 
     <!-- 无项目时 -->
     <div v-if="!store.projectHandle" class="empty-state">
       <div class="empty-icon">📂</div>
-      <p v-if="!isFsaSupported()" class="compat-hint">需要 Chrome 或 Edge 浏览器</p>
+      <p v-if="!isFsaSupported()" class="compat-hint">
+        需要 Chrome 或 Edge 浏览器
+      </p>
       <template v-else>
-        <p class="empty-hint">打开本地项目文件夹<br>以管理 KMD 脚本</p>
-        <button class="open-folder-btn" @click="handleOpenFolder">打开文件夹</button>
+        <p class="empty-hint">打开本地项目文件夹<br />以管理 KMD 脚本</p>
+        <button class="open-folder-btn" @click="handleOpenFolder">
+          打开文件夹
+        </button>
       </template>
     </div>
 
@@ -31,72 +37,90 @@
         class="tree-item"
         :class="{
           active: item.path === store.activeFilePath,
-          directory: item.kind === 'directory'
+          directory: item.kind === 'directory',
         }"
         :style="{ paddingLeft: `${item.depth * 12 + 8}px` }"
         @click="handleItemClick(item)"
         :title="item.path"
       >
         <span class="item-icon">{{
-          item.kind === 'directory'
-            ? (expandedPaths.has(item.path) ? '▾' : '▸')
+          item.kind === "directory"
+            ? expandedPaths.has(item.path)
+              ? "▾"
+              : "▸"
             : getFileIcon(item.name)
         }}</span>
         <span class="item-name">{{ item.name }}</span>
-        <span v-if="item.kind === 'file' && store.dirtyFiles.has(item.path)" class="dirty-dot" title="未保存">●</span>
+        <span
+          v-if="item.kind === 'file' && store.dirtyFiles.has(item.path)"
+          class="dirty-dot"
+          title="未保存"
+          >●</span
+        >
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useEditorStore } from '../store/editorStore'
-import { isFsaSupported } from '../services/fileSystem'
-import type { FileNode } from '../services/fileSystem'
+import { ref, computed } from "vue";
+import { useEditorStore } from "../store/editorStore";
+import { isFsaSupported } from "../services/fileSystem";
+import type { FileNode } from "../services/fileSystem";
 
-const store = useEditorStore()
-const expandedPaths = ref(new Set<string>())
+const store = useEditorStore();
+const expandedPaths = ref(new Set<string>());
 
 interface FlatItem extends FileNode {
-  depth: number
+  depth: number;
 }
 
 function flattenTree(nodes: FileNode[], depth = 0): FlatItem[] {
-  const result: FlatItem[] = []
+  const result: FlatItem[] = [];
   for (const node of nodes) {
-    result.push({ ...node, depth })
-    if (node.kind === 'directory' && expandedPaths.value.has(node.path) && node.children) {
-      result.push(...flattenTree(node.children, depth + 1))
+    result.push({ ...node, depth });
+    if (
+      node.kind === "directory" &&
+      expandedPaths.value.has(node.path) &&
+      node.children
+    ) {
+      result.push(...flattenTree(node.children, depth + 1));
     }
   }
-  return result
+  return result;
 }
 
-const flatTree = computed(() => flattenTree(store.fileTree))
+const flatTree = computed(() => flattenTree(store.fileTree));
 
 const handleOpenFolder = async () => {
-  await store.openFolder()
-  expandedPaths.value = new Set<string>()
-}
+  await store.openFolder();
+  expandedPaths.value = new Set<string>();
+};
 
 const handleItemClick = (item: FlatItem) => {
-  if (item.kind === 'directory') {
-    const next = new Set(expandedPaths.value)
-    if (next.has(item.path)) next.delete(item.path)
-    else next.add(item.path)
-    expandedPaths.value = next
+  if (item.kind === "directory") {
+    const next = new Set(expandedPaths.value);
+    if (next.has(item.path)) next.delete(item.path);
+    else next.add(item.path);
+    expandedPaths.value = next;
   } else {
-    store.openFile(item)
+    store.openFile(item);
   }
-}
+};
 
 function getFileIcon(name: string): string {
-  if (name.endsWith('.kmd')) return '📄'
-  if (name.endsWith('.yaml') || name.endsWith('.yml')) return '⚙'
-  if (name.endsWith('.ttf') || name.endsWith('.otf') || name.endsWith('.woff2')) return '🔤'
-  if (name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.svg')) return '🖼'
-  return '📃'
+  if (name.endsWith(".kmd")) return "📄";
+  if (name.endsWith(".yaml") || name.endsWith(".yml")) return "⚙";
+  if (name.endsWith(".ttf") || name.endsWith(".otf") || name.endsWith(".woff2"))
+    return "🔤";
+  if (
+    name.endsWith(".png") ||
+    name.endsWith(".jpg") ||
+    name.endsWith(".jpeg") ||
+    name.endsWith(".svg")
+  )
+    return "🖼";
+  return "📃";
 }
 </script>
 
@@ -248,7 +272,14 @@ function getFileIcon(name: string): string {
   flex-shrink: 0;
 }
 
-.file-tree::-webkit-scrollbar { width: 4px; }
-.file-tree::-webkit-scrollbar-track { background: transparent; }
-.file-tree::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+.file-tree::-webkit-scrollbar {
+  width: 4px;
+}
+.file-tree::-webkit-scrollbar-track {
+  background: transparent;
+}
+.file-tree::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 2px;
+}
 </style>

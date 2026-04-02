@@ -42,12 +42,12 @@ KMD 源码
 
 **文件**: `src/core/parser/`
 
-| 模块 | 职责 |
-|------|------|
-| `Parser.ts` (singleton: `parser`) | 入口。分割段落、提取 YAML frontmatter、校验指令名 |
-| `KMDScanner.ts` | 逐行扫描。处理 `[block options]`、`---` 场景切换、`{花括号组}`、markdown 语法糖、管道 `\|`、`@` 指令分割 |
-| `KMDCommandParser.ts` | 解析 `f.effect.chain(params)` 为 `EffectConfig[]`；处理命名空间保护 (`cam.` → 临时替换) |
-| `types.ts` | `KMDToken`, `EffectConfig`, `KMDParagraphData`, `LayoutInstruction` 等类型定义 |
+| 模块                              | 职责                                                                                                     |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `Parser.ts` (singleton: `parser`) | 入口。分割段落、提取 YAML frontmatter、校验指令名                                                        |
+| `KMDScanner.ts`                   | 逐行扫描。处理 `[block options]`、`---` 场景切换、`{花括号组}`、markdown 语法糖、管道 `\|`、`@` 指令分割 |
+| `KMDCommandParser.ts`             | 解析 `f.effect.chain(params)` 为 `EffectConfig[]`；处理命名空间保护 (`cam.` → 临时替换)                  |
+| `types.ts`                        | `KMDToken`, `EffectConfig`, `KMDParagraphData`, `LayoutInstruction` 等类型定义                           |
 
 **关键输出**：`KMDToken { content, effects: EffectConfig[], layoutInstructions[], sugar[], line, range }`
 
@@ -55,15 +55,15 @@ KMD 源码
 
 **文件**: `src/core/layout/`
 
-| 模块 | 职责 |
-|------|------|
-| `LayoutEngine.ts` (singleton: `layout`) | 全局段落垂直堆叠、`globalMarkers` 管理、响应式回流、状态序列化 |
-| `LayoutStreamBuilder.ts` | Token → LayoutStream 转换。测量字宽、运行 Expander、收集舞台指令 |
-| `TextLayoutEngine.ts` | 两趟扫描坐标引擎。**Phantom Pass** 发现标记和行边界，**Main Pass** 输出最终 `LayoutResult[]` |
-| `LayoutManager.ts` (singleton: `layoutManager`) | Operator + Expander 双注册表。自动加载 layoutPresets 和 layoutExpanders |
-| `layoutPresets.ts` | 运行时 Operator：`goto`, `flow`, `mark`, `offset`, `pushDisplayOffset`, `popDisplayOffset` 等 |
-| `layoutExpanders.ts` | 构建时 Expander：将 `up(50)` 展开为 `pushDisplayOffset`/`popDisplayOffset` 对 |
-| `types.ts` | `LayoutContext`, `LayoutResult`, `MarkerMap`, `CursorState` 等类型 |
+| 模块                                            | 职责                                                                                          |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `LayoutEngine.ts` (singleton: `layout`)         | 全局段落垂直堆叠、`globalMarkers` 管理、响应式回流、状态序列化                                |
+| `LayoutStreamBuilder.ts`                        | Token → LayoutStream 转换。测量字宽、运行 Expander、收集舞台指令                              |
+| `TextLayoutEngine.ts`                           | 两趟扫描坐标引擎。**Phantom Pass** 发现标记和行边界，**Main Pass** 输出最终 `LayoutResult[]`  |
+| `LayoutManager.ts` (singleton: `layoutManager`) | Operator + Expander 双注册表。自动加载 layoutPresets 和 layoutExpanders                       |
+| `layoutPresets.ts`                              | 运行时 Operator：`goto`, `flow`, `mark`, `offset`, `pushDisplayOffset`, `popDisplayOffset` 等 |
+| `layoutExpanders.ts`                            | 构建时 Expander：将 `up(50)` 展开为 `pushDisplayOffset`/`popDisplayOffset` 对                 |
+| `types.ts`                                      | `LayoutContext`, `LayoutResult`, `MarkerMap`, `CursorState` 等类型                            |
 
 **三层排版指令体系**：
 - **视觉偏移** (`offset/up/down/left/right`)：per-token 作用域，push/pop 自动回收，不影响排版流
@@ -72,12 +72,12 @@ KMD 源码
 
 **指令路由（三前缀 × 三作用域）**（详见 `docs/core/command-routing.md`）：
 
-| 前缀 | 视觉特效去向 | 排版/舞台指令去向 | 作用域 |
-|------|------------|-----------------|--------|
-| `f.xxx` | visualQueue → 1:1 花括号匹配 | token.effects → partition | token 级 |
-| `.xxx` | visualQueue → 全部 token | dotLineLayoutInstructions → lineScope pre/post | 行级 |
-| 裸名 `xxx` | — | lineLayoutInstructions → 行首 token | 行级 |
-| `[.xxx]` | globalEffects | globalEffects → stream 头部 | 段落级 |
+| 前缀       | 视觉特效去向                 | 排版/舞台指令去向                              | 作用域   |
+| ---------- | ---------------------------- | ---------------------------------------------- | -------- |
+| `f.xxx`    | visualQueue → 1:1 花括号匹配 | token.effects → partition                      | token 级 |
+| `.xxx`     | visualQueue → 全部 token     | dotLineLayoutInstructions → lineScope pre/post | 行级     |
+| 裸名 `xxx` | —                            | lineLayoutInstructions → 行首 token            | 行级     |
+| `[.xxx]`   | globalEffects                | globalEffects → stream 头部                    | 段落级   |
 
 **行级 lineScope 机制**：`.offset(100,0)` 的 `pushDisplayOffset` 挂首 token (lineScope:"pre")，
 `popDisplayOffset` 挂末 token (lineScope:"post")，横跨整行。
@@ -91,12 +91,12 @@ KMD 源码
 
 **文件**: `src/core/render/text/` + `src/core/`
 
-| 模块 | 职责 |
-|------|------|
-| `KineticText.ts` | Pixi Container，一个段落的顶层对象。持有 tokens、chars、options |
-| `TextBuilder.ts` | 桥接层：Parser 输出 + Layout 结果 → KineticChar + TokenWrapper 场景树 |
-| `KineticChar.ts` | 单字符 Pixi Text。**三层变换**：`layoutX/Y` (基准) + `displayOffset` (视觉偏移) + `animOffset` (GSAP) + `modifiers` (Ticker) |
-| `TokenWrapper.ts` | Token 分组容器，管理 chars[] 和图形层 |
+| 模块              | 职责                                                                                                                         |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `KineticText.ts`  | Pixi Container，一个段落的顶层对象。持有 tokens、chars、options                                                              |
+| `TextBuilder.ts`  | 桥接层：Parser 输出 + Layout 结果 → KineticChar + TokenWrapper 场景树                                                        |
+| `KineticChar.ts`  | 单字符 Pixi Text。**三层变换**：`layoutX/Y` (基准) + `displayOffset` (视觉偏移) + `animOffset` (GSAP) + `modifiers` (Ticker) |
+| `TokenWrapper.ts` | Token 分组容器，管理 chars[] 和图形层                                                                                        |
 
 **KineticChar 属性层级**：
 ```
@@ -111,21 +111,21 @@ KMD 源码
 
 **文件**: `src/core/effects/`
 
-| 模块 | 职责 |
-|------|------|
-| `EffectManager.ts` (singleton: `effectManager`) | 视觉特效注册表 (shake, wave, pulse, glitch...) + mutex 组冲突管理 |
-| `StyleManager.ts` (singleton: `styleManager`) | 样式修改器注册表 (red, bold, dim, font...) + mutex 管理 |
-| `EffectProcessor.ts` | 智能路由：四轨分类 + 三路分流 (layout/visual/stage)；参数解析；样式应用 |
-| `presets.ts` | 28 种特效实现 (每个导出 `{ fn, meta }`) |
-| `styles.ts` | 18 种样式实现 |
+| 模块                                            | 职责                                                                    |
+| ----------------------------------------------- | ----------------------------------------------------------------------- |
+| `EffectManager.ts` (singleton: `effectManager`) | 视觉特效注册表 (shake, wave, pulse, glitch...) + mutex 组冲突管理       |
+| `StyleManager.ts` (singleton: `styleManager`)   | 样式修改器注册表 (red, bold, dim, font...) + mutex 管理                 |
+| `EffectProcessor.ts`                            | 智能路由：四轨分类 + 三路分流 (layout/visual/stage)；参数解析；样式应用 |
+| `presets.ts`                                    | 28 种特效实现 (每个导出 `{ fn, meta }`)                                 |
+| `styles.ts`                                     | 18 种样式实现                                                           |
 
 **四轨特效分类**：
-| Track | 时间驱动 | seek 行为 | 示例 |
-|-------|---------|----------|------|
-| `entrance` | Timeline Tween | GSAP 自动插值 | fadeIn, slideUp |
-| `behavior` | Ticker 回调 | 通过 `registerBehaviors(t)` 重注册 | shake, wave, rainbow |
-| `instant` | 立即执行 | 通过 `StyleRecord` 重放 | red, bold, blur |
-| `timing` | cursor 控制 | Timeline 位置隐含 | hold, pause |
+| Track      | 时间驱动       | seek 行为                          | 示例                 |
+| ---------- | -------------- | ---------------------------------- | -------------------- |
+| `entrance` | Timeline Tween | GSAP 自动插值                      | fadeIn, slideUp      |
+| `behavior` | Ticker 回调    | 通过 `registerBehaviors(t)` 重注册 | shake, wave, rainbow |
+| `instant`  | 立即执行       | 通过 `StyleRecord` 重放            | red, bold, blur      |
+| `timing`   | cursor 控制    | Timeline 位置隐含                  | hold, pause          |
 
 **三路分流** (`EffectProcessor.partition`)：
 - `layoutManager.has(name)` → `layoutCmds[]`
@@ -136,10 +136,10 @@ KMD 源码
 
 **文件**: `src/core/stage/`
 
-| 模块 | 职责 |
-|------|------|
-| `StageManager.ts` (singleton: `stageManager`) | 世界容器层级 (bg → content → ui)，三层摄影机，设计分辨率信封适配 |
-| `stagePresets.ts` | 舞台指令实现 (`cam.move`, `cam.zoom`, `cam.offset`, `cam.reset` 等) |
+| 模块                                          | 职责                                                                |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| `StageManager.ts` (singleton: `stageManager`) | 世界容器层级 (bg → content → ui)，三层摄影机，设计分辨率信封适配    |
+| `stagePresets.ts`                             | 舞台指令实现 (`cam.move`, `cam.zoom`, `cam.offset`, `cam.reset` 等) |
 
 **三层摄影机**：
 ```
@@ -155,11 +155,11 @@ updateWorldTransform():
 
 **文件**: `src/core/player/` + `src/core/state/`
 
-| 模块 | 职责 |
-|------|------|
+| 模块              | 职责                                                                             |
+| ----------------- | -------------------------------------------------------------------------------- |
 | `ScriptPlayer.ts` | 多段落播放指挥。加载 → `buildSegment()` 烘焙 → `seekToTime(t)` / `playSegment()` |
-| `TextPlayer.ts` | 段落级 Timeline 构建。`buildTimeline()` 将字符排入 gsap.Timeline |
-| `Segment.ts` | 数据结构：`Segment { timeline, behaviors[], paragraphs[], checkpoints }` |
+| `TextPlayer.ts`   | 段落级 Timeline 构建。`buildTimeline()` 将字符排入 gsap.Timeline                 |
+| `Segment.ts`      | 数据结构：`Segment { timeline, behaviors[], paragraphs[], checkpoints }`         |
 
 **Segment + Timeline 架构**：
 ```
@@ -180,13 +180,13 @@ seekToTime(t):
 
 **文件**: `src/store/`, `src/components/`, `src/views/`
 
-| 模块 | 职责 |
-|------|------|
+| 模块                     | 职责                                                                             |
+| ------------------------ | -------------------------------------------------------------------------------- |
 | `editorStore.ts` (Pinia) | 响应式状态中心：kmdContent, isPlaying, canvasConfig, timelineMarkers, layoutTree |
-| `DockSystem/` | 递归分栏布局：4 种面板 (editor, preview, monitor, inspector) |
-| `App.vue` | 外壳：工具栏 + 停靠布局 |
-| `KmdEditor.vue` | Monaco 编辑器集成 |
-| `TimeLordBar.vue` | 进度条 + seek 控制 |
+| `DockSystem/`            | 递归分栏布局：4 种面板 (editor, preview, monitor, inspector)                     |
+| `App.vue`                | 外壳：工具栏 + 停靠布局                                                          |
+| `KmdEditor.vue`          | Monaco 编辑器集成                                                                |
+| `TimeLordBar.vue`        | 进度条 + seek 控制                                                               |
 
 ---
 
@@ -279,9 +279,9 @@ src/
 
 ## 模块逻辑文档
 
-| 文档 | 内容 | 何时查阅 |
-|------|------|---------|
-| `docs/core/command-routing.md` | @ 指令三路分流、lineScope 机制、5 个踩坑记录 | 修改解析器或排版路由时 |
-| `docs/core/effect-pipeline.md` | 特效四轨分类、targetType 守卫、管线路径 A/B | 修改特效应用或添加新特效时 |
+| 文档                           | 内容                                         | 何时查阅                   |
+| ------------------------------ | -------------------------------------------- | -------------------------- |
+| `docs/core/command-routing.md` | @ 指令三路分流、lineScope 机制、5 个踩坑记录 | 修改解析器或排版路由时     |
+| `docs/core/effect-pipeline.md` | 特效四轨分类、targetType 守卫、管线路径 A/B  | 修改特效应用或添加新特效时 |
 
 *Last Updated: 2026-03-10*

@@ -85,13 +85,13 @@ export class TextLayoutEngine {
                 handleWrap();
             }
 
-                        // 核心修正：基于字号的比例间距 (Tracking)
-                        const charData = (item as any).charData;
-                        const fSize = charData.fontSize || charData.char?.style?.fontSize || options.fontSize;
-                        
-                        // 使用 0.02em (2% 字号) 作为基础步进补偿，追求极致紧凑的专业排版质感
-                        const tracking = fSize * 0.02;
-                        const stepDistance = item.width + tracking + options.letterSpacing;
+            // 核心修正：基于字号的比例间距 (Tracking)
+            const charData = (item as any).charData;
+            const fSize = charData.fontSize || charData.char?.style?.fontSize || options.fontSize;
+
+            // 使用 0.02em (2% 字号) 作为基础步进补偿，追求极致紧凑的专业排版质感
+            const tracking = fSize * 0.02;
+            const stepDistance = item.width + tracking + options.letterSpacing;
             const currentLine = lines[lIdx];
             if (currentLine) {
                 const res: LayoutResult = {

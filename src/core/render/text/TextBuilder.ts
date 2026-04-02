@@ -15,11 +15,11 @@ export class TextBuilder {
     Object.assign(target._options, blockOptions);
 
     const store = useEditorStore();
-    const baseStyle = new TextStyle({ 
-        fontSize: target._options.fontSize, 
-        fill: store.canvasConfig.fontColor,
-        fontFamily: store.canvasConfig.fontFamily,
-        padding: 0
+    const baseStyle = new TextStyle({
+      fontSize: target._options.fontSize,
+      fill: store.canvasConfig.fontColor,
+      fontFamily: store.canvasConfig.fontFamily,
+      padding: 0
     });
 
     const { stream: layoutStream } = LayoutStreamBuilder.build(ir!, baseStyle);

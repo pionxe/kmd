@@ -23,7 +23,7 @@ const kmdSource = `
 
 try {
     const result = parser.parse(kmdSource);
-    
+
     // 1. 验证标题 (#)
     const p1 = result.paragraphs[0];
     assert(p1.tokens.some(t => t.effects.some(e => e.name === "special")), "Heading (#) should apply 'special' effect");

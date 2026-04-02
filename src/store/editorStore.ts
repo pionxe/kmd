@@ -82,7 +82,7 @@ export const useEditorStore = defineStore('editor', () => {
     const startMarker = "---";
     const endMarker = "---";
     const content = kmdContent.value;
-    
+
     // 构造新的 YAML 字符串
     const newYaml = [
       `mode: ${canvasConfig.value.mode}`,
@@ -103,7 +103,7 @@ export const useEditorStore = defineStore('editor', () => {
       // 插入新头文件
       kmdContent.value = `${startMarker}\n${newYaml}\n${endMarker}\n\n${content}`;
     }
-    
+
     // 使用 nextTick 思想，但在 store 中我们手动在同步逻辑结束后解锁
     // 由于 ref 修改是同步的，这里可以直接解锁，或者为了保险包裹在异步中
     setTimeout(() => {
@@ -263,7 +263,7 @@ export const useEditorStore = defineStore('editor', () => {
   // 核心修复：全量深度监听配置变化并同步到编辑器和引擎
   watch(canvasConfig, () => {
     if (isUpdatingFrontMatter) return;
-    
+
     if (player.value) {
       player.value.updateConfig({
         mode: canvasConfig.value.mode,

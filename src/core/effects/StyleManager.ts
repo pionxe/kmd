@@ -4,7 +4,7 @@ import * as Presets from "./styles";
 
 class StyleManager {
   private registry: IStyleRegistry = {};
-  
+
   // Track applied mutex groups for each TextStyle object
   private activeMutexes: WeakMap<TextStyle, Set<string>> = new WeakMap();
 
@@ -56,7 +56,7 @@ class StyleManager {
     const { fn, meta } = entry;
 
     // --- Conflict Detection ---
-    const overrideGroups = ['color', 'weight', 'size', 'sizeModifier', 'shadow', 'stroke']; 
+    const overrideGroups = ['color', 'weight', 'size', 'sizeModifier', 'shadow', 'stroke'];
     if (meta.mutexGroup && !force) {
       let appliedMutexes = this.activeMutexes.get(style);
       if (!appliedMutexes) {
