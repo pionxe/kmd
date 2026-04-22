@@ -1,6 +1,6 @@
 # Refactor Overview
 
-> 状态：Phase 1 至 Phase 4 已完成，当前进入 Phase 5 规划
+> 状态：Phase 1 至 Phase 5 已完成
 > 目标：统一 parser / IR / layout / execution 四篇方案的入口、术语与优先级
 
 ## 管线总览
@@ -61,7 +61,7 @@ Phase 4
 
 Phase 5
   -> 单一语义源 / Layout mainline unification / LayoutPlanner-DisplayAssembler-CompatBinder 起手
-  -> PLANNED
+  -> DONE
 ```
 
 ## 文档导航
@@ -86,6 +86,8 @@ Phase 5
   - 第四阶段代码审查、文档漂移修正、下一阶段建议
 - [phase-5-implementation-plan.md](./phase-5-implementation-plan.md)
   - 第五阶段实施范围、单一语义源、layout 主链路拆分、`TextBuilder`/`KineticText` build boundary 收束
+- [phase5-code-review.md](./phase5-code-review.md)
+  - 第五阶段代码审查、风险分级与 WP5 回归建议
 - [phase3-code-review.md](./phase3-code-review.md)
   - 第三阶段代码审查、`scene.clear` 双路径风险与收尾建议
 - [refactor-review.md](./refactor-review.md)

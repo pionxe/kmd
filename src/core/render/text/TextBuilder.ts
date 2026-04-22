@@ -1,87 +1,81 @@
 import { TextStyle } from "pixi.js";
 import { parser } from "../../parser/Parser";
-import { LayoutStreamBuilder } from "../../layout/LayoutStreamBuilder";
+import { LayoutPlanner } from "../../layout/LayoutPlanner";
 import { TextLayoutEngine } from "../../layout/TextLayoutEngine";
-import { TokenWrapper } from "../../TokenWrapper";
-import { KineticChar } from "../../KineticChar";
-import { useEditorStore } from "../../../store/editorStore";
 import type { KMDParagraphData } from "../../parser/types";
+import { CompatBinder } from "./CompatBinder";
+import { DisplayAssembler } from "./DisplayAssembler";
+import type {
+  ParagraphWithIr,
+  TextBuildContextFactory,
+  ParagraphBuildInput,
+  PositionedLegacyLayoutResult,
+  TextBuildTarget,
+} from "./types";
 
 export class TextBuilder {
-  public static async build(target: any, kmdString: string, startLine: number = 0) {
+  public static async build(
+    target: TextBuildTarget,
+    kmdString: string,
+    startLine: number = 0,
+    buildContextFactory: TextBuildContextFactory,
+  ) {
     const paragraph = parser.parseParagraph(kmdString, startLine) as KMDParagraphData;
-    const { blockOptions, globalEffects, ir } = paragraph;
-    target._pendingGlobalEffects = globalEffects as any[];
-    Object.assign(target._options, blockOptions);
+    return this.buildFromParagraph(target, {
+      paragraph,
+      sourceKMD: kmdString,
+    }, buildContextFactory);
+  }
 
-    const store = useEditorStore();
-    const baseStyle = new TextStyle({
-      fontSize: target._options.fontSize,
-      fill: store.canvasConfig.fontColor,
-      fontFamily: store.canvasConfig.fontFamily,
-      padding: 0
-    });
+  public static async buildFromParagraph(
+    target: TextBuildTarget,
+    input: ParagraphBuildInput,
+    buildContextFactory: TextBuildContextFactory,
+  ) {
+    const paragraph = this.resolveParagraphInput(input);
+    return this.buildResolvedParagraph(target, paragraph, buildContextFactory);
+  }
 
-    const { stream: layoutStream } = LayoutStreamBuilder.build(ir!, baseStyle);
-    const layoutResults = TextLayoutEngine.calculate(layoutStream, {
-      ...target._options,
-      baseOffset: { x: target.x, y: target.y }
-    });
+  private static async buildResolvedParagraph(
+    target: TextBuildTarget,
+    paragraph: ParagraphWithIr,
+    buildContextFactory: TextBuildContextFactory,
+  ) {
+    const { ir } = paragraph;
+    CompatBinder.bindParagraphTarget(target, paragraph);
+    const buildContext = buildContextFactory(target);
+    const layoutPlan = LayoutPlanner.plan(ir!, buildContext.baseStyle.clone() as TextStyle);
+    const { stream: layoutStream } = DisplayAssembler.materializePlan(layoutPlan);
+    const layoutResults = TextLayoutEngine.calculate(
+      layoutStream,
+      buildContext.layoutOptions,
+    );
+    const newTokens = DisplayAssembler.assembleLayoutResults(
+      target,
+      layoutResults as PositionedLegacyLayoutResult[],
+    );
+    CompatBinder.bindTargetCollections(target, newTokens);
+  }
 
-    let currentWrapper: TokenWrapper | null = null;
-    let currentTokenIdx = -1;
-    let currentLineY = -1;
+  private static resolveParagraphInput(input: ParagraphBuildInput): ParagraphWithIr {
+    if (input.paragraph.ir) return input.paragraph as ParagraphWithIr;
+    if (!input.sourceKMD) {
+      throw new Error(
+        `TextBuilder received paragraph input without IR or sourceKMD (lineOffset=${input.paragraph.lineOffset ?? 0}).`,
+      );
+    }
 
-    const newTokens: TokenWrapper[] = [];
+    const reparsed = parser.parseParagraph(
+      input.sourceKMD,
+      input.paragraph.lineOffset ?? 0,
+    ) as KMDParagraphData;
 
-    layoutResults.forEach(({ item: data, x, y, inFlow, displayOffsetX, displayOffsetY }) => {
-      const { char, effects, tokenIdx, stageInstructions, timingSugars, ascent, height, line } = data.charData;
-      const isNewLine = Math.abs(y - currentLineY) > 1;
+    if (!reparsed.ir) {
+      throw new Error(
+        `TextBuilder requires paragraph IR before layout planning (lineOffset=${input.paragraph.lineOffset ?? 0}).`,
+      );
+    }
 
-      if (!char) {
-        const dummy = new KineticChar("", new TextStyle({ padding: 0 }));
-        dummy.visible = false;
-        dummy.layoutX = x; dummy.layoutY = y; dummy.inFlow = false;
-        dummy.stageInstructions = stageInstructions || [];
-        dummy.visualEffects = effects || [];
-        dummy.timingSugars = timingSugars || [];
-        dummy.tokenIdx = tokenIdx;
-        dummy.line = line;
-        const wrapper = new TokenWrapper();
-        wrapper.addChild(dummy); wrapper.chars.push(dummy); wrapper.tokenIdx = tokenIdx;
-        newTokens.push(wrapper); target.addChild(wrapper);
-        return;
-      }
-
-      char.layoutX = x;
-      char.layoutY = y;
-      char.inFlow = inFlow;
-      if (!char.text) char.inFlow = false;  // Sugar/空字符不参与高度计算
-      if (displayOffsetX || displayOffsetY) {
-        char.displayOffset = { x: displayOffsetX || 0, y: displayOffsetY || 0 };
-      }
-      char.line = line;
-      if (height > 0) char.anchor.y = ascent / height;
-
-      char.stageInstructions = stageInstructions || [];
-      char.visualEffects = effects || [];
-      char.timingSugars = timingSugars || [];
-      char.tokenIdx = tokenIdx;
-      char.visible = false;
-
-      if (tokenIdx !== currentTokenIdx || isNewLine) {
-        currentWrapper = new TokenWrapper();
-        currentWrapper.tokenIdx = tokenIdx;
-        currentTokenIdx = tokenIdx;
-        currentLineY = y;
-        newTokens.push(currentWrapper);
-        target.addChild(currentWrapper);
-      }
-      currentWrapper!.addChild(char);
-      currentWrapper!.chars.push(char);
-    });
-
-    target.tokens = newTokens;
-    target._allCharsCached = newTokens.flatMap(t => t.chars);
+    return reparsed as ParagraphWithIr;
   }
 }

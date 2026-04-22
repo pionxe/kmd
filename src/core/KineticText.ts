@@ -3,10 +3,12 @@ import { EffectProcessor } from "./effects/EffectProcessor";
 import { TokenWrapper } from "./TokenWrapper";
 import { KineticChar } from "./KineticChar";
 import { TextBuilder } from "./render/text/TextBuilder";
+import { TextBuildContextResolver } from "./render/text/TextBuildContextResolver";
 import { TextPlayer } from "./render/text/TextPlayer";
 
 import type { BlockOptions } from "./parser/types";
 import type { MarkerMap } from "./layout/types";
+import type { ParagraphBuildInput } from "./render/text/types";
 
 export interface KineticTextOptions extends BlockOptions {
   externalMarkers: MarkerMap;
@@ -17,7 +19,9 @@ export type FullOptions = Required<KineticTextOptions>;
 export class KineticText extends Container {
   public _options: FullOptions;
   public _sourceKMD: string = "";
+  private _sourceStartLine: number = 0;
   public _currentOptions: KineticTextOptions;
+  private _paragraphBuildInput?: ParagraphBuildInput;
 
   public tokens: TokenWrapper[] = [];
   public _pendingGlobalEffects: any[] = [];
@@ -49,17 +53,29 @@ export class KineticText extends Container {
 
   public async init(kmdString: string, startLine: number = 0) {
     this._sourceKMD = kmdString;
+    this._sourceStartLine = startLine;
+    this._paragraphBuildInput = undefined;
     if ((document as any).fonts) {
       await (document as any).fonts.ready;
     }
-    await TextBuilder.build(this, kmdString, startLine);
+    await TextBuilder.build(this, kmdString, startLine, TextBuildContextResolver.fromTarget);
+  }
+
+  public async initFromParagraph(input: ParagraphBuildInput) {
+    this._sourceKMD = input.sourceKMD ?? "";
+    this._sourceStartLine = input.paragraph.lineOffset ?? 0;
+    this._paragraphBuildInput = input;
+    if ((document as any).fonts) {
+      await (document as any).fonts.ready;
+    }
+    await TextBuilder.buildFromParagraph(this, input, TextBuildContextResolver.fromTarget);
   }
 
   public async applyParagraphEffects() {
     await EffectProcessor.applyGroupEffects(this as any, this._pendingGlobalEffects);
   }
 
-  public async rebuild(newOptions?: any, startLine: number = 0) {
+  public async rebuild(newOptions?: any) {
     this._currentOptions = { ...this._currentOptions, ...newOptions };
     this._options = {
       maxWidth: 800, lineHeight: 60, fontSize: 36, indent: 0,
@@ -69,7 +85,11 @@ export class KineticText extends Container {
 
     this.tokens.forEach((t) => t.destroy({ children: true }));
     this.removeChildren();
-    await TextBuilder.build(this, this._sourceKMD, startLine);
+    if (this._paragraphBuildInput) {
+      await TextBuilder.buildFromParagraph(this, this._paragraphBuildInput, TextBuildContextResolver.fromTarget);
+      return;
+    }
+    await TextBuilder.build(this, this._sourceKMD, this._sourceStartLine, TextBuildContextResolver.fromTarget);
   }
 
   public async play(absStartTime: number, options: { speed?: number; mode?: string; onAdvance?: () => void } = {}): Promise<{ skipAutoPause?: boolean }> {

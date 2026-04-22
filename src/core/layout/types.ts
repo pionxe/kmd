@@ -79,6 +79,17 @@ export interface CursorState {
   y: number;
 }
 
+export interface LayoutEngineOptions {
+  maxWidth: number;
+  lineHeight: number;
+  fontSize: number;
+  indent: number;
+  align: "left" | "center" | "right";
+  letterSpacing: number;
+  externalMarkers: MarkerMap;
+  baseOffset: CursorState;
+}
+
 export type AnchorState = SharedAnchorState<CursorState>;
 export type LayoutPreflightResult = SharedLayoutPreflightResult<CursorState>;
 export type LayoutDiagnostics = DiagnosticEvent[];
@@ -114,13 +125,7 @@ export interface LayoutContext {
   displayOffset: CursorState;         // 当前视觉偏移（不影响排版流），初始 {0,0}
   _displayOffsetStack: CursorState[]; // push/pop 嵌套栈
   baselineY: number;                  // 当前行基线 Y（从 TextLayoutEngine 局部变量提升）
-  options: {
-    maxWidth: number;
-    lineHeight: number;
-    fontSize: number;
-    letterSpacing: number;
-    baseOffset: CursorState; // 相对布局根节点的绝对偏移
-  };
+  options: Pick<LayoutEngineOptions, "maxWidth" | "lineHeight" | "fontSize" | "letterSpacing" | "baseOffset">;
 }
 
 // 排版指令算子：直接接收上下文并修改它

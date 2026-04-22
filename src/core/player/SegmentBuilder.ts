@@ -334,7 +334,11 @@ export class SegmentBuilder {
       baseOffset: { x: 0, y: 0 },
     });
 
-    await paragraphText.init(rawText, paragraph.lineOffset || 0);
+    // Segment build now keeps the parser-produced paragraph as the semantic source of truth.
+    await paragraphText.initFromParagraph({
+      paragraph,
+      sourceKMD: rawText,
+    });
     return paragraphText;
   }
 
@@ -368,7 +372,6 @@ export class SegmentBuilder {
         baseOffset: { x, y },
         externalMarkers: layout.globalMarkers,
       },
-      paragraph.lineOffset || 0,
     );
 
     return { x, y };

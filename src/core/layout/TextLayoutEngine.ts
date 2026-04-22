@@ -1,6 +1,7 @@
 import type {
   LayoutStream,
   LayoutContext,
+  LayoutEngineOptions,
   MarkerMap,
   LayoutItem,
   LayoutCommand,
@@ -11,7 +12,6 @@ import type {
   LinePlan,
 } from './types';
 import { layoutManager } from './LayoutManager';
-import type { FullOptions } from "../KineticText";
 
 export class TextLayoutEngine {
   public static lastAuditLog: LayoutAuditRecord[] = [];
@@ -53,7 +53,7 @@ export class TextLayoutEngine {
 
   private static applyLineAlignment(
     line: LayoutResult[],
-    options: FullOptions,
+    options: LayoutEngineOptions,
     touchedMarkers?: string[],
     markers?: Map<string, CursorState>,
   ) {
@@ -103,9 +103,9 @@ export class TextLayoutEngine {
   }
 
   /**
-     * 幻影预扫描：模拟完整路径，建立基于 Baseline 的标记图与行几何预检结果
-     */
-  public static preflight(stream: LayoutStream, options: FullOptions, globalMarkers: MarkerMap): LayoutPreflightResult {
+   * 幻影预扫描：模拟完整路径，建立基于 Baseline 的标记图与行几何预检结果
+   */
+  public static preflight(stream: LayoutStream, options: LayoutEngineOptions, globalMarkers: MarkerMap): LayoutPreflightResult {
     const firstLineMaxAscent = this.findFirstLineMaxAscent(stream);
     const ctx: LayoutContext = {
       activeCursor: {
@@ -208,7 +208,7 @@ export class TextLayoutEngine {
 
   public static calculate(
     stream: LayoutStream,
-    options: FullOptions,
+    options: LayoutEngineOptions,
     globalMarkers: MarkerMap = options.externalMarkers
   ): LayoutResult[] {
 

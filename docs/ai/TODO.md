@@ -134,27 +134,27 @@
     - [x] `pnpm test:parser`
     - [x] 关键样例脚本回归检查（stage clear / page mode / seek）
 
-### Phase A.U — Layout Mainline Unification（单一语义源 / Builder 三角拆分起手）— Current
+### Phase A.U — Layout Mainline Unification（单一语义源 / Builder 三角拆分起手）— DONE
 
 > 实施方案见 `docs/refactor/phase-5-implementation-plan.md`
 > 目标：收掉 paragraph build 主链路里的双语义源，让 `LayoutStreamBuilder -> TextLayoutEngine -> TextBuilder` 这一段逐步变成 parser-side paragraph input 驱动的正式角色链，为 Phase B 建立稳定的 paragraph build boundary。
 
-- [ ] **AU1. Paragraph Single-Source Build Path**
-    - [ ] 引入 `ParagraphBuildInput` / compat loader，让 `SegmentBuilder` 主路径不再依赖 `KineticText.init(rawText)` 二次 parse
-    - [ ] 保留 editor / preview 所需的 source-driven compat path
-- [ ] **AU2. LayoutPlanner Extraction**
-    - [ ] 从 `LayoutStreamBuilder` 中抽出测量、initial style preview、指令展开、stage lane 收集
-    - [ ] 让 planner 输出 typed item/glyph plan，而不是直接创建 `KineticChar`
-- [ ] **AU3. DisplayAssembler / CompatBinder Split**
-    - [ ] 将 `KineticChar` / `TokenWrapper` 物化从 planner 中移出
-    - [ ] 收口 pending effects / timing sugars / stage instruction 绑定的兼容写回
-- [ ] **AU4. Paragraph Build Boundary Cleanup**
-    - [ ] 将 `TextBuilder` 从 parser 与 UI store 的直接依赖中收缩为 build-context 驱动
-    - [ ] 逐步解除 `TextLayoutEngine` 对 `KineticText.FullOptions` 的 host 类型依赖
-- [ ] **AU5. Validation and Guard Rails**
-    - [ ] `pnpm build`
-    - [ ] `pnpm test:parser`
-    - [ ] 关键样例脚本回归检查（scene.clear / page / seek / paragraph build parity）
+- [x] **AU1. Paragraph Single-Source Build Path**
+    - [x] 引入 `ParagraphBuildInput` / compat loader，让 `SegmentBuilder` 主路径不再依赖 `KineticText.init(rawText)` 二次 parse
+    - [x] 保留 editor / preview 所需的 source-driven compat path
+- [x] **AU2. LayoutPlanner Extraction**
+    - [x] 从 `LayoutStreamBuilder` 中抽出测量、initial style preview、指令展开、stage lane 收集
+    - [x] 让 planner 输出 typed item/glyph plan，而不是直接创建 `KineticChar`
+- [x] **AU3. DisplayAssembler / CompatBinder Split**
+    - [x] 将 `KineticChar` / `TokenWrapper` 物化从 planner 中移出
+    - [x] 收口 pending effects / timing sugars / stage instruction 绑定的兼容写回
+- [x] **AU4. Paragraph Build Boundary Cleanup**
+    - [x] 将 `TextBuilder` 从 parser 与 UI store 的直接依赖中收缩为 build-context 驱动
+    - [x] 逐步解除 `TextLayoutEngine` 对 `KineticText.FullOptions` 的 host 类型依赖
+- [x] **AU5. Validation and Guard Rails**
+    - [x] `pnpm build`
+    - [x] `pnpm test:parser`
+    - [x] 关键样例脚本回归检查（scene.clear / page / seek / paragraph build parity）
 
 ### Phase B — Segment Graph、状态系统与语法演进
 

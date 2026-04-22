@@ -1,6 +1,6 @@
 # Phase 5 Implementation Plan
 
-> 状态：PLANNED
+> 状态：COMPLETE
 > 目标：消除 paragraph build 主链路中的双语义源，启动 `LayoutStreamBuilder -> TextLayoutEngine -> TextBuilder` 的正式拆分，使 parser / layout / execution 共享同一份 paragraph 输入
 > 对齐文档：`layout-refactor-outline.md`、`execution-refactor-outline.md`、`ir-refactor-outline.md`、`phase4-code-review.md`
 
@@ -59,6 +59,38 @@ KMDParagraphData / ParagraphIR
 3. 收紧 `TextBuilder` / `KineticText` 的 build boundary
 4. 为 Phase B 的 graph/state/control-flow 打开稳定入口
 
+## 当前进度
+
+- 已完成 `WP1 Paragraph Single-Source Build Path` 的首轮落地：
+  - 新增 `ParagraphBuildInput`
+  - `SegmentBuilder` 主路径改为调用 `KineticText.initFromParagraph(...)`
+  - `KineticText.rebuild()` 在 parser-driven 模式下不再回退到 `rawText` 二次 parse
+  - `TextBuilder` 新增 `buildFromParagraph(...)`，兼容 `init(rawText)` 保留不动
+- 已完成 `WP2 LayoutPlanner Extraction` 的首轮落地：
+  - 新增 `LayoutPlanner.ts`
+  - `LayoutPlanner` 负责测量、initial style preview、layout/stage 指令展开、timing sugar 附着
+  - planner 输出 typed glyph/item plan，不再直接创建 `KineticChar`
+  - `LayoutStreamBuilder` 收缩为 compat façade，只负责将 plan 物化成 legacy `charData/LayoutStream`
+- 已完成 `WP3 DisplayAssembler / CompatBinder Split` 的首轮落地：
+  - 新增 `DisplayAssembler.ts`
+  - 新增 `CompatBinder.ts`
+  - `DisplayAssembler` 承接 glyph plan -> legacy `charData/LayoutStream` 物化，以及 `TokenWrapper` 装配
+  - `CompatBinder` 承接 paragraph globals、positioned char 绑定、target collections 写回
+  - `TextBuilder` 不再直接处理 `KineticChar`/`TokenWrapper` 细节，转为调用 planner + assembler + binder
+- 已完成 `WP4 Paragraph Build Boundary Cleanup` 的首轮落地：
+  - 新增 `TextBuildContextResolver.ts` 作为 UI/store -> build context 的 adapter seam
+  - `TextBuilder` 主体改为消费 `TextBuildContextFactory`，不再直接读取 `useEditorStore()`
+  - `TextBuilder.buildFromParagraph(...)` 的主路径现在由 resolved paragraph + build context 驱动
+  - `TextLayoutEngine` 改为消费 `LayoutEngineOptions`，不再直接依赖 `KineticText.FullOptions`
+- 已完成 `WP5 Validation and Guard Rails`：
+  - `pnpm build`
+  - `pnpm test:parser`
+  - 样例脚本人工回归（`scene.clear` / `page` / `seek` / paragraph build parity）
+  - `phase5-code-review.md` 中的 Findings #1 / #2 已修复并复测通过
+- 已验证：
+  - `pnpm build`
+  - `pnpm test:parser`
+
 ## 范围
 
 ### In Scope
@@ -77,9 +109,15 @@ KMDParagraphData / ParagraphIR
 4. `StateStore` / `@if` / `@loop` / `@jump` 等 Phase B 语法功能
 5. `KineticText / KineticChar` 的最终形态收缩
 
+## 阶段收口说明
+
+- `ParagraphBuildInput` 已收紧为“带 IR”或“带 sourceKMD”两种合法输入，避免 `buildFromParagraph()` 在半结构化输入上静默崩溃。
+- `KineticText.rebuild()` 已去掉 parser-driven 路径下误导性的 `startLine` 参数传递；source-driven 路径改为使用持久化的 `_sourceStartLine`。
+- 工作区中的 `.codex` 属于本地环境噪音，不属于 Phase 5 代码资产，提交时应排除。
+
 ## 当前已知问题
 
-### 1. 双语义源
+### 1. 双语义源（已在本阶段完成）
 
 当前 `SegmentBuilder` 先读 parser 的 `KMDParagraphData`，随后 `KineticText.init(rawText)` 又重新解析同一段文本。功能上暂时可用，但这会制造：
 
@@ -87,7 +125,7 @@ KMDParagraphData / ParagraphIR
 - parser / layout / execution 之间的 ownership 模糊
 - 未来 graph/state 接入时的重复解释风险
 
-### 2. `LayoutStreamBuilder` 职责过杂
+### 2. `LayoutStreamBuilder` 职责过杂（已在本阶段完成第一轮拆分）
 
 它当前同时承担：
 
@@ -99,7 +137,7 @@ KMDParagraphData / ParagraphIR
 
 这让它既像 planner，又像 display factory，还像 compat binder。
 
-### 3. `TextBuilder` 仍是隐藏的胶水层
+### 3. `TextBuilder` 仍是隐藏的胶水层（已在本阶段完成第一轮收缩）
 
 它当前同时承担：
 
@@ -111,7 +149,7 @@ KMDParagraphData / ParagraphIR
 
 这条链如果不拆，Phase B 只会继续往一个“知道所有细节”的 builder 上加东西。
 
-### 4. `TextLayoutEngine` 仍牵着 host 类型
+### 4. `TextLayoutEngine` 仍牵着 host 类型（已在本阶段完成第一轮解耦）
 
 目前 engine 仍通过 `FullOptions` 与 `KineticText` 建立边界，这说明 layout core 还没有完全独立成 host-agnostic 输入/输出。
 
