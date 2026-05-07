@@ -1,6 +1,7 @@
 import type { EffectConfig } from "../parser/types";
 import { TokenWrapper } from "../TokenWrapper";
 import { KineticChar } from "../KineticChar";
+import type { ParagraphDisplayAssembly } from "../render/text/types";
 import type { BaseCue, DiagnosticEvent, ParagraphExecutionPlan } from "../types";
 import {
   buildTokenPlan,
@@ -29,28 +30,28 @@ export interface RuntimeParagraphExecutionPlan
 }
 
 export function createParagraphExecutionPlan(
-  allChars: KineticChar[],
-  tokens: TokenWrapper[],
+  assembly: Pick<ParagraphDisplayAssembly, "tokens" | "executionItems">,
 ): RuntimeParagraphExecutionPlan {
   const diagnostics: DiagnosticEvent[] = [];
+  const sourceItems = assembly.executionItems;
+  const tokens = assembly.tokens;
 
-  const items: ParagraphExecutionItem[] = allChars.map((char, index) => {
-    const tokenIdx = char.tokenIdx;
-    const isNewLine = char.isNewLine || char.text === "\n";
-    const prevChar = allChars[index - 1];
-    const nextChar = allChars[index + 1];
-    const isTokenStart = !isNewLine && (index === 0 || !prevChar || prevChar.tokenIdx !== tokenIdx);
-    const isTokenEnd = !isNewLine && (!nextChar || nextChar.tokenIdx !== tokenIdx);
-    const lifecycle = createItemLifecycle(index, allChars.length, isTokenStart, isTokenEnd, isNewLine);
+  const items: ParagraphExecutionItem[] = sourceItems.map((sourceItem, index) => {
+    const { char, tokenIdx, line, isNewLine } = sourceItem;
+    const prevItem = sourceItems[index - 1];
+    const nextItem = sourceItems[index + 1];
+    const isTokenStart = !isNewLine && (index === 0 || !prevItem || prevItem.tokenIdx !== tokenIdx);
+    const isTokenEnd = !isNewLine && (!nextItem || nextItem.tokenIdx !== tokenIdx);
+    const lifecycle = createItemLifecycle(index, sourceItems.length, isTokenStart, isTokenEnd, isNewLine);
 
     const item: ParagraphExecutionItem = {
       char,
       tokenIdx,
-      line: char.line,
+      line,
       isNewLine,
-      visualEffects: [...(char.visualEffects || [])],
-      timingSugars: [...(char.timingSugars || [])],
-      stageInstructions: [...(char.stageInstructions || [])],
+      visualEffects: [...sourceItem.visualEffects],
+      timingSugars: [...sourceItem.timingSugars],
+      stageInstructions: [...sourceItem.stageInstructions],
       lifecycle,
       cues: [],
     };

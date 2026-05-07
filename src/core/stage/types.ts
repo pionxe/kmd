@@ -41,3 +41,8 @@ export interface StageConflictDiagnostic {
   command: string;
   message: string;
 }
+
+export interface StageAuditSnapshot {
+  entries: StageAuditEntry[];
+  conflicts: StageConflictDiagnostic[];
+}

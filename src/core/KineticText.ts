@@ -8,7 +8,12 @@ import { TextPlayer } from "./render/text/TextPlayer";
 
 import type { BlockOptions } from "./parser/types";
 import type { MarkerMap } from "./layout/types";
-import type { ParagraphBuildInput } from "./render/text/types";
+import {
+  createEmptyParagraphDisplayAssembly,
+  type ParagraphBuildInput,
+  type ParagraphDisplayAssembly,
+  type TextExecutionItemPayload,
+} from "./render/text/types";
 
 export interface KineticTextOptions extends BlockOptions {
   externalMarkers: MarkerMap;
@@ -23,9 +28,15 @@ export class KineticText extends Container {
   public _currentOptions: KineticTextOptions;
   private _paragraphBuildInput?: ParagraphBuildInput;
 
+  // Canonical paragraph build result. New layout/execution/runtime paths should read here first.
+  public _displayAssembly: ParagraphDisplayAssembly = createEmptyParagraphDisplayAssembly();
+  /** @deprecated Legacy compat mirror. Prefer `_displayAssembly.tokens`. */
   public tokens: TokenWrapper[] = [];
   public _pendingGlobalEffects: any[] = [];
+  /** @deprecated Legacy compat mirror. Prefer `_displayAssembly.chars`. */
   public _allCharsCached: KineticChar[] = [];
+  /** @deprecated Legacy compat mirror. Prefer `_displayAssembly.executionItems`. */
+  public _executionItems: TextExecutionItemPayload[] = [];
   public _stopRequested: boolean = false;
 
   public logicalHeight: number = 0;
@@ -85,6 +96,10 @@ export class KineticText extends Container {
 
     this.tokens.forEach((t) => t.destroy({ children: true }));
     this.removeChildren();
+    this._displayAssembly = createEmptyParagraphDisplayAssembly();
+    this.tokens = this._displayAssembly.tokens;
+    this._allCharsCached = this._displayAssembly.chars;
+    this._executionItems = this._displayAssembly.executionItems;
     if (this._paragraphBuildInput) {
       await TextBuilder.buildFromParagraph(this, this._paragraphBuildInput, TextBuildContextResolver.fromTarget);
       return;
@@ -94,11 +109,11 @@ export class KineticText extends Container {
 
   public async play(absStartTime: number, options: { speed?: number; mode?: string; onAdvance?: () => void } = {}): Promise<{ skipAutoPause?: boolean }> {
     this._stopRequested = false;
-    return TextPlayer.play(this, this._allCharsCached, this.tokens, absStartTime, options);
+    return TextPlayer.play(this, this._displayAssembly, absStartTime, options);
   }
 
   public bakeTimeline(baseSpeed: number): number {
-    return TextPlayer.bakeTimeline(this, this._allCharsCached, baseSpeed);
+    return TextPlayer.bakeTimeline(this, this._displayAssembly, baseSpeed);
   }
 
   public stop() {
@@ -111,11 +126,11 @@ export class KineticText extends Container {
    */
   public skipToEnd() {
     this._stopRequested = true;
-    TextPlayer.skipToEnd(this, this._allCharsCached, this.tokens);
+    TextPlayer.skipToEnd(this, this._displayAssembly);
   }
 
   public getLayoutHeight(): number {
-    const inFlowChars = this._allCharsCached.filter((c) => c.inFlow);
+    const inFlowChars = this._displayAssembly.chars.filter((c) => c.inFlow);
     if (inFlowChars.length === 0) return 0;
     let minY = Infinity, maxY = -Infinity;
     inFlowChars.forEach((c) => {
@@ -129,7 +144,7 @@ export class KineticText extends Container {
   }
 
   public getLayoutWidth(): number {
-    const inFlowChars = this._allCharsCached.filter((c) => c.inFlow);
+    const inFlowChars = this._displayAssembly.chars.filter((c) => c.inFlow);
     if (inFlowChars.length === 0) return 0;
     let minX = Infinity, maxX = -Infinity;
     inFlowChars.forEach((c) => {
@@ -143,7 +158,7 @@ export class KineticText extends Container {
   }
 
   public getContentBounds(): Rectangle {
-    const allChars = this._allCharsCached;
+    const allChars = this._displayAssembly.chars;
     if (allChars.length === 0) return new Rectangle(0, 0, 0, 0);
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     allChars.forEach((c) => {

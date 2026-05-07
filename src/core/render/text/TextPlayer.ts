@@ -8,6 +8,10 @@ import { TokenWrapper } from "../../TokenWrapper";
 import { KineticChar } from "../../KineticChar";
 import type { EffectConfig } from "../../parser/types";
 import type { RuntimeParagraphExecutionPlan } from "../../execution/paragraphExecutionPlan";
+import { TextPlanDiagnosticsSink } from "./TextPlanDiagnosticsSink";
+import { TextStageCueScheduler } from "./TextStageCueScheduler";
+import { TextTimelineCursor } from "./TextTimelineCursor";
+import type { ParagraphDisplayAssembly, TextExecutionItemPayload } from "./types";
 import gsap from "gsap";
 
 /**
@@ -45,6 +49,19 @@ export interface TimelineBuildResult {
 }
 
 export class TextPlayer {
+  private static isNewLineItem(item: TextExecutionItemPayload) {
+    return item.isNewLine || item.char.text === "\n";
+  }
+
+  private static sliceLegacyPlaybackAssembly(
+    assembly: Pick<ParagraphDisplayAssembly, "tokens" | "executionItems">,
+    executionItems: TextExecutionItemPayload[],
+  ): Pick<ParagraphDisplayAssembly, "tokens" | "executionItems"> {
+    return {
+      tokens: assembly.tokens,
+      executionItems,
+    };
+  }
 
   // ═══════════════════════════════════════════════════════════════
   //  Phase A: Timeline 构建器 (替代 setTimeout 驱动的 play)
@@ -82,19 +99,8 @@ export class TextPlayer {
       }
     });
 
-    this.reportPlanDiagnostics(plan);
-
-    let cursor = 0; // 时间游标 (秒)
-    let persistentSpeedMult = 1.0;
-    let groupSpeedMult = 1.0;
-    let lastWasInstantGo = false;
-    let advanceTime: number | undefined = undefined;
-    // >> 产生的 fork 点：下一行从这里开始而不是从当前行末尾开始
-    let groupForkCursor: number | undefined = undefined;
-    // pause:char 覆盖当前 token 内每个字符的步进时长
-    let pauseCharOverride: number | undefined = undefined;
-    // 当前 token 的阻塞推进量（pause / blocking stage cmds），延迟到 token 末尾一次性加到 cursor
-    let deferredCursorAdvance = 0;
+    TextPlanDiagnosticsSink.reportPlan(plan);
+    const timelineCursor = new TextTimelineCursor();
 
     for (let i = 0; i < allChars.length; i++) {
       const item = plan.items[i]!;
@@ -104,100 +110,50 @@ export class TextPlayer {
 
       // ── 1. 换行处理 ──
       if (isNewLine) {
-        if (groupForkCursor !== undefined) {
-          // >> 生效中：下一行从 fork 点开始（与当前行并行）
-          cursor = groupForkCursor;
-          groupForkCursor = undefined;
-        } else if (!lastWasInstantGo) {
-          // 正常行：加呼吸间隔
-          cursor += baseSpeed * 10;
-        }
-        persistentSpeedMult = 1.0;
-        groupSpeedMult = 1.0;
-        lastWasInstantGo = false;
+        timelineCursor.consumeNewLine(baseSpeed);
         continue;
       }
 
       // ── 2. 时序糖衣 ──
 
       if (item.lifecycle.isTokenStart) {
-        deferredCursorAdvance = 0; // 新 token 重置
-        pauseCharOverride = tokenPlan?.pauseCharOverride;
+        timelineCursor.beginToken(tokenPlan?.pauseCharOverride);
       }
 
       const timing = EffectProcessor.resolveTiming(item.timingSugars);
-      if (timing.speedMultiplier !== undefined) {
-        persistentSpeedMult = timing.speedMultiplier;
-      }
-
-      const delayOverride = timing.delayOverride;
-      const isSugarGo = (delayOverride === 0);
-      const isInstantGo = isSugarGo || lastWasInstantGo;
-
-      // ── 3. 提前推进信号 ──
-
-      // >>> (block advance): 记录 fork 点，当前段落剩余正常播放，
-      // ScriptPlayer 在 advanceTime 位置接入下一段落的子 Timeline
-      if (timing.advanceLevel === "block") {
-        advanceTime = cursor;
-        // 不 break —— 继续处理本段落剩余字符（正常节奏）
-      }
-
-      // >> (group advance): 记录 fork 点，当前行剩余正常播放，
-      // 下一行将从此 cursor 开始（在换行处理中生效）
-      if (timing.advanceLevel === "group") {
-        groupForkCursor = cursor;
-        // 不 break —— 当前行剩余按正常节奏继续
-      }
+      const { delayOverride, isSugarGo, isInstantGo } = timelineCursor.applyTiming(timing);
 
       // ── 4. Stage 指令（仅空字符：管道符、场景清除等） ──
       // 非空字符的舞台指令见 §5.5（与字符同时触发，阻塞延迟到 token 末）
       if (!char.text.trim()) {
-        for (const instr of item.stageInstructions) {
-          if (instr.type === "pause") {
-            if ((instr as any).level === "char") continue;
-            const pauseDur = Number(instr.params?.duration ?? instr.params?.d ?? instr.params?.[0] ?? 1);
-            if (!isInstantGo) {
-              cursor += pauseDur;
-            }
-          } else if (MODIFIER_BASED_COMMANDS.has(instr.type)) {
-            const instrCopy = { type: instr.type, params: { ...instr.params } };
-            tl.call(() => {
-              stageManager.apply(instrCopy.type, instrCopy.params);
-            }, [], cursor);
-          } else {
-            const result = stageManager.apply(instr.type, instr.params);
-            this.captureTween(tl, result, cursor);
-            if (instr.blocking && (result instanceof gsap.core.Tween || result instanceof gsap.core.Timeline)) {
-              cursor += result.duration();
-            }
-          }
-        }
+        timelineCursor.addDeferredAdvance(TextStageCueScheduler.collectPauseAdvance(item.stageInstructions, isInstantGo));
+        const blockingAdvance = TextStageCueScheduler.schedule(
+          tl,
+          item.stageInstructions,
+          timelineCursor.position,
+          this.captureTween,
+        );
+        timelineCursor.addDeferredAdvance(blockingAdvance);
+        timelineCursor.flushTokenAdvance(true);
       }
 
       // ── 5. 放置字符（入场动画 + 行为收集） ──
       if (char.text.trim()) {
-        this.placeCharOnTimeline(tl, char, i, cursor, behaviors, styleRecords);
+        this.placeCharOnTimeline(tl, item, i, timelineCursor.position, behaviors, styleRecords);
 
         // 编辑器行号同步
-        if (char.line !== undefined) {
-          const lineNum = char.line + 1;
+        if (item.line !== undefined) {
+          const lineNum = item.line + 1;
           tl.call(() => {
             const store = useEditorStore();
             store.currentLine = lineNum;
-          }, [], cursor);
+          }, [], timelineCursor.position);
         }
 
         // ── 5.5. Stage 指令收集（pause 计入延迟推进；其余收集到 §6.5 与末字同时触发） ──
-        for (const instr of char.stageInstructions) {
-          if (instr.type === "pause") {
-            if ((instr as any).level === "char") continue;
-            const pauseDur = Number(instr.params?.duration ?? instr.params?.d ?? instr.params?.[0] ?? 1);
-            if (!isInstantGo) {
-              deferredCursorAdvance += pauseDur;
-            }
-          }
-        }
+        timelineCursor.addDeferredAdvance(
+          TextStageCueScheduler.collectPauseAdvance(item.stageInstructions, isInstantGo),
+        );
       }
 
       // ── 6. 组特效时序链展开（Token 边界触发） ──
@@ -211,14 +167,14 @@ export class TextPlayer {
           );
           if (holdCharConfig && (!chainPlan || chainPlan.mode === "char_stagger")) {
             if (!chainPlan) {
-              this.warnMissingChainPlan(item.tokenIdx, item.line);
+              TextPlanDiagnosticsSink.warnMissingChainPlan(item.tokenIdx, item.line);
             }
-            this.unrollCharChain(tl, wrapper, tokenPlan.visualEffects, cursor, behaviors, holdCharConfig, styleRecords);
+            this.unrollCharChain(tl, wrapper, tokenPlan.visualEffects, timelineCursor.position, behaviors, holdCharConfig, styleRecords);
           } else {
             // unrollGroupChain 返回 chain 内 pause 指令的累计时长，追加到 deferredCursorAdvance
-            const pauseFromChain = this.unrollGroupChain(tl, wrapper, tokenPlan.visualEffects, cursor, behaviors, styleRecords);
+            const pauseFromChain = this.unrollGroupChain(tl, wrapper, tokenPlan.visualEffects, timelineCursor.position, behaviors, styleRecords);
             if (pauseFromChain > 0) {
-              deferredCursorAdvance += pauseFromChain;
+              timelineCursor.addDeferredAdvance(pauseFromChain);
             }
           }
         }
@@ -226,74 +182,38 @@ export class TextPlayer {
 
       // ── 6.5. Token-end Stage 指令执行（与最后一字同时触发；blocking 追加到 §7.5） ──
       if (isTokenEnd && tokenPlan && tokenPlan.tokenEndStageInstructions.length > 0) {
-        for (const instr of tokenPlan.tokenEndStageInstructions) {
-          if (MODIFIER_BASED_COMMANDS.has(instr.type)) {
-            const instrCopy = { type: instr.type, params: { ...instr.params } };
-            tl.call(() => {
-              stageManager.apply(instrCopy.type, instrCopy.params);
-            }, [], cursor);
-          } else {
-            const result = stageManager.apply(instr.type, instr.params);
-            this.captureTween(tl, result, cursor);
-            if (instr.blocking && (result instanceof gsap.core.Tween || result instanceof gsap.core.Timeline)) {
-              deferredCursorAdvance += result.duration();
-            }
-          }
-        }
+        timelineCursor.addDeferredAdvance(
+          TextStageCueScheduler.schedule(
+            tl,
+            tokenPlan.tokenEndStageInstructions,
+            timelineCursor.position,
+            this.captureTween,
+          ),
+        );
       }
 
       // ── 7. 推进 cursor ──
-      if (!isInstantGo) {
-        if (pauseCharOverride !== undefined && char.text.trim()) {
-          // pause:char 覆盖：每字固定间隔
-          cursor += pauseCharOverride;
-        } else if (delayOverride !== undefined && delayOverride > 0) {
-          cursor += delayOverride;
-        } else if (delayOverride === undefined && char.text !== "") {
-          const isPunctuation = /[，。！？]/.test(char.text);
-          const speed = baseSpeed * persistentSpeedMult * groupSpeedMult;
-          cursor += isPunctuation ? speed * 5 : speed;
-        }
-      }
+      timelineCursor.advanceChar({
+        charText: char.text,
+        baseSpeed,
+        isInstantGo,
+        delayOverride,
+      });
 
       // ── 7.5. Token-end 延迟 cursor 推进（pause / 阻塞舞台指令） ──
-      if (isTokenEnd && deferredCursorAdvance > 0) {
-        cursor += deferredCursorAdvance;
-        deferredCursorAdvance = 0;
-      }
+      timelineCursor.flushTokenAdvance(isTokenEnd);
 
       // ── 8. 状态流转 ──
-      lastWasInstantGo = isSugarGo;
-      if (delayOverride !== undefined && delayOverride > 0) {
-        lastWasInstantGo = false;
-      }
-      if (isTokenEnd) {
-        groupSpeedMult = 1.0;
-        pauseCharOverride = undefined;
-      }
+      timelineCursor.finishItem({ isTokenEnd, isSugarGo, delayOverride });
     }
 
-    return { timeline: tl, behaviors, styleRecords, duration: cursor, advanceTime };
-  }
-
-  private static reportPlanDiagnostics(plan: RuntimeParagraphExecutionPlan) {
-    for (const diagnostic of plan.diagnostics ?? []) {
-      const prefix = diagnostic.code ? `[${diagnostic.code}]` : "[ExecutionPlan]";
-      if (diagnostic.severity === "error") {
-        console.error(`${prefix} ${diagnostic.message}`, diagnostic.origin ?? {});
-      } else if (diagnostic.severity === "warning") {
-        console.warn(`${prefix} ${diagnostic.message}`, diagnostic.origin ?? {});
-      } else {
-        console.info(`${prefix} ${diagnostic.message}`, diagnostic.origin ?? {});
-      }
-    }
-  }
-
-  private static warnMissingChainPlan(tokenIdx: number, line?: number) {
-    console.warn(
-      `[ExecutionPlan] Missing chain plan for token ${tokenIdx}; falling back to char_stagger via hold:char`,
-      line !== undefined ? { line } : undefined,
-    );
+    return {
+      timeline: tl,
+      behaviors,
+      styleRecords,
+      duration: timelineCursor.position,
+      advanceTime: timelineCursor.advanceTime,
+    };
   }
 
   /**
@@ -301,18 +221,20 @@ export class TextPlayer {
    */
   private static placeCharOnTimeline(
     tl: gsap.core.Timeline,
-    char: KineticChar,
+    item: RuntimeParagraphExecutionPlan["items"][number],
     charIndex: number,
     cursor: number,
     behaviors: BehaviorRecord[],
     styleRecords: StyleRecord[]
   ) {
+    const char = item.char;
+    const visualEffects = item.visualEffects;
     // 分类该字符的视觉特效
-    const classified = EffectProcessor.classifyByTrack(char.visualEffects);
+    const classified = EffectProcessor.classifyByTrack(visualEffects);
 
     // 捕获 pre-hold 样式为 StyleRecord（在字符揭示时间点），供 seek 时重放
     // 镜像 applyInitialStyles 的逻辑：遇到第一个 hold/blocking 就停止
-    for (const eff of char.visualEffects) {
+    for (const eff of visualEffects) {
       if (eff.name === "hold" || eff.blocking) break;
       if (styleManager.has(eff.name)) {
         styleRecords.push({
@@ -328,8 +250,8 @@ export class TextPlayer {
     // - hold:char 链：全部跳过（unrollCharChain 以错开时序逐字处理）
     // - 组级 hold 链：全部跳过（unrollGroupChain 在链时间点统一分流到 char 或 container）
     // - 无 hold 链：全部注册（与字符出现时间错开，stagger with appearance）
-    const hasHoldChar = char.visualEffects.some(e => e.name === "hold" && e.level === "char");
-    const hasGroupHold = char.visualEffects.some(e => e.name === "hold" && e.level !== "char");
+    const hasHoldChar = visualEffects.some(e => e.name === "hold" && e.level === "char");
+    const hasGroupHold = visualEffects.some(e => e.name === "hold" && e.level !== "char");
     if (!hasHoldChar && !hasGroupHold) {
       for (const cfg of classified.behavior) {
         behaviors.push({
@@ -652,11 +574,12 @@ export class TextPlayer {
    */
   public static async play(
     target: any,
-    allChars: KineticChar[],
-    tokens: TokenWrapper[],
+    assembly: Pick<ParagraphDisplayAssembly, "tokens" | "executionItems">,
     absStartTime: number,
     options: { speed?: number; mode?: string; onAdvance?: () => void } = {}
   ): Promise<{ skipAutoPause?: boolean }> {
+    const items = assembly.executionItems;
+    const tokens = assembly.tokens;
     const store = useEditorStore();
     let baseRevealSpeed = options.speed ?? target._options.speed ?? 50;
     let virtualElapsed = 0;
@@ -665,16 +588,17 @@ export class TextPlayer {
     let persistentSpeedMultiplier = 1.0;
     let groupSpeedMultiplier = 1.0;
 
-    for (let i = 0; i < allChars.length; i++) {
+    for (let i = 0; i < items.length; i++) {
       if (target._stopRequested) return { skipAutoPause: true };
 
-      const char = allChars[i]!;
+      const item = items[i]!;
+      const char = item.char;
       const realIdx = i;
-      const isNewLine = char.isNewLine || char.text === "\n";
+      const isNewLine = this.isNewLineItem(item);
 
       // 1. 更新行号 (仅对可见字符)
-      if (char.line !== undefined && char.text.trim()) {
-        store.currentLine = char.line + 1;
+      if (item.line !== undefined && char.text.trim()) {
+        store.currentLine = item.line + 1;
       }
 
       // 2. 处理行级重置
@@ -685,7 +609,7 @@ export class TextPlayer {
       }
 
       // 3. 检查节奏糖衣
-      const timing = EffectProcessor.resolveTiming(char.timingSugars);
+      const timing = EffectProcessor.resolveTiming(item.timingSugars);
       if (timing.speedMultiplier !== undefined) {
         persistentSpeedMultiplier = timing.speedMultiplier;
       }
@@ -697,7 +621,7 @@ export class TextPlayer {
       const isInstantGo = isSugarGo || lastWasInstantGo;
 
       // 4. 执行指令并捕获速度变化
-      const charEffectRes = await EffectProcessor.applyCharEffects(char, char.visualEffects, realIdx);
+      const charEffectRes = await EffectProcessor.applyCharEffects(char, item.visualEffects, realIdx);
       if (charEffectRes.speedMultiplier !== undefined) {
         persistentSpeedMultiplier = charEffectRes.speedMultiplier;
       }
@@ -724,7 +648,7 @@ export class TextPlayer {
       }
 
       // 7. 执行演出 (Stage & Group Effects)
-      const perfTask = this.executePerformance(target, char, isInstantGo, realIdx, tokens, allChars);
+      const perfTask = this.executePerformance(target, item, isInstantGo, realIdx, tokens, items);
 
       // 核心修复：如果是并发模式，不等待演出完成，直接进入下一个循环
       if (!isInstantGo) {
@@ -741,15 +665,25 @@ export class TextPlayer {
         options.onAdvance = undefined;
       } else if (advanceLevel === "group") {
         let nextLineIdx = -1;
-        for (let j = i + 1; j < allChars.length; j++) {
-          const targetChar = allChars[j];
-          if (targetChar && (targetChar.isNewLine || targetChar.text === "\n")) { nextLineIdx = j; break; }
+        for (let j = i + 1; j < items.length; j++) {
+          const nextItem = items[j];
+          if (nextItem && this.isNewLineItem(nextItem)) { nextLineIdx = j; break; }
         }
         if (nextLineIdx !== -1) {
           if (target._stopRequested) return { skipAutoPause: true };
-          this.play(target, allChars.slice(nextLineIdx + 1), tokens, absStartTime + virtualElapsed, { ...options, onAdvance: undefined });
-          const thisLineRemaining = allChars.slice(i + 1, nextLineIdx + 1);
-          return this.play(target, thisLineRemaining, tokens, absStartTime + virtualElapsed, { ...options, onAdvance: undefined });
+          void this.play(
+            target,
+            this.sliceLegacyPlaybackAssembly(assembly, items.slice(nextLineIdx + 1)),
+            absStartTime + virtualElapsed,
+            { ...options, onAdvance: undefined },
+          );
+          const thisLineRemaining = items.slice(i + 1, nextLineIdx + 1);
+          return this.play(
+            target,
+            this.sliceLegacyPlaybackAssembly(assembly, thisLineRemaining),
+            absStartTime + virtualElapsed,
+            { ...options, onAdvance: undefined },
+          );
         }
       }
 
@@ -782,8 +716,8 @@ export class TextPlayer {
         lastWasInstantGo = false;
       }
 
-      const nextChar = allChars[i + 1];
-      if (!nextChar || nextChar.tokenIdx !== char.tokenIdx) {
+      const nextItem = items[i + 1];
+      if (!nextItem || nextItem.tokenIdx !== item.tokenIdx) {
         groupSpeedMultiplier = 1.0;
       }
     }
@@ -794,10 +728,10 @@ export class TextPlayer {
    * 瞬间跳到演出结束态
    * 用于跳转后恢复"正在场上"的文字状态
    */
-  public static skipToEnd(target: any, allChars: KineticChar[], tokens: TokenWrapper[]) {
+  public static skipToEnd(target: any, assembly: Pick<ParagraphDisplayAssembly, "chars" | "tokens">) {
     target._stopRequested = true;
 
-    allChars.forEach(char => {
+    assembly.chars.forEach(char => {
       gsap.killTweensOf(char.animOffset);
 
       // 恢复到标准显示态
@@ -813,7 +747,7 @@ export class TextPlayer {
     });
 
     // 瞬间应用所有组特效的最终态 (TODO: 如果有复杂的组特效可能需要特殊处理)
-    tokens.forEach(_token => {
+    assembly.tokens.forEach(_token => {
       // 目前组特效多为动画，killTweensOf 已经覆盖了大部分情况
     });
   }
@@ -824,17 +758,18 @@ export class TextPlayer {
    */
   public static async fastForward(
     target: any,
-    allChars: KineticChar[],
-    tokens: TokenWrapper[],
+    assembly: Pick<ParagraphDisplayAssembly, "chars" | "tokens" | "executionItems">,
     _absStartTime: number,
     _options: { speed?: number } = {}
   ) {
+    const items = assembly.executionItems;
     // 暂时通过将速度设为极小值并跳过所有等待来实现
     // 在这个模式下，setTimeout(0) 依然会有微小延迟，但在 JS 循环中足够快
     const store = useEditorStore();
 
-    for (let i = 0; i < allChars.length; i++) {
-      const char = allChars[i]!;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]!;
+      const char = item.char;
       if (char.text.trim()) {
         char.visible = true;
         char.animOffset.alpha = 1;
@@ -842,30 +777,36 @@ export class TextPlayer {
       }
 
       // 执行指令但不等待结果
-      for (const instr of char.stageInstructions) {
+      for (const instr of item.stageInstructions) {
         stageManager.apply(instr.type, instr.params);
       }
 
-      if (char.line !== undefined && char.text.trim()) {
-        store.currentLine = char.line + 1;
+      if (item.line !== undefined && char.text.trim()) {
+        store.currentLine = item.line + 1;
       }
     }
 
-    this.skipToEnd(target, allChars, tokens);
+    this.skipToEnd(target, assembly);
   }
 
   /**
    * 离线时长预演算
    */
-  public static bakeTimeline(_target: any, allChars: KineticChar[], baseSpeed: number): number {
+  public static bakeTimeline(
+    _target: any,
+    assembly: Pick<ParagraphDisplayAssembly, "executionItems">,
+    baseSpeed: number,
+  ): number {
+    const items = assembly.executionItems;
     let virtualTime = 0;
     let persistentSpeedMultiplier = 1.0;
     let groupSpeedMultiplier = 1.0;
     let lastWasInstantGo = false;
 
-    for (let i = 0; i < allChars.length; i++) {
-      const char = allChars[i]!;
-      const isNewLine = char.isNewLine || char.text === "\n";
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]!;
+      const char = item.char;
+      const isNewLine = this.isNewLineItem(item);
 
       if (isNewLine) {
         persistentSpeedMultiplier = 1.0;
@@ -873,7 +814,7 @@ export class TextPlayer {
         lastWasInstantGo = false;
       }
 
-      const timing = EffectProcessor.resolveTiming(char.timingSugars);
+      const timing = EffectProcessor.resolveTiming(item.timingSugars);
       if (timing.speedMultiplier !== undefined) persistentSpeedMultiplier = timing.speedMultiplier;
 
       if (timing.advanceLevel === "block") return virtualTime;
@@ -882,8 +823,8 @@ export class TextPlayer {
       const isSugarGo = (timing.delayOverride === 0);
       const isInstantGo = isSugarGo || lastWasInstantGo;
 
-      if (char.stageInstructions.length > 0) {
-        for (const instr of char.stageInstructions) {
+      if (item.stageInstructions.length > 0) {
+        for (const instr of item.stageInstructions) {
           if (instr.type === "pause") {
             virtualTime += Number(instr.params.duration ?? instr.params.d ?? instr.params[0] ?? 1) * 1000;
           }
@@ -904,25 +845,32 @@ export class TextPlayer {
       lastWasInstantGo = isSugarGo;
       if (delayOverride !== undefined && delayOverride > 0) lastWasInstantGo = false;
 
-      const nextChar = allChars[i + 1];
-      if (!nextChar || nextChar.tokenIdx !== char.tokenIdx) groupSpeedMultiplier = 1.0;
+      const nextItem = items[i + 1];
+      if (!nextItem || nextItem.tokenIdx !== item.tokenIdx) groupSpeedMultiplier = 1.0;
     }
     return virtualTime;
   }
 
-  private static async executePerformance(_target: any, char: KineticChar, isInstantGo: boolean, charIdx: number, tokens: TokenWrapper[], allChars: KineticChar[]): Promise<{ speedMultiplier?: number }> {
+  private static async executePerformance(
+    _target: any,
+    item: TextExecutionItemPayload,
+    isInstantGo: boolean,
+    charIdx: number,
+    tokens: TokenWrapper[],
+    items: TextExecutionItemPayload[],
+  ): Promise<{ speedMultiplier?: number }> {
     let speedMultiplier: number | undefined = undefined;
-    for (const instr of char.stageInstructions) {
+    for (const instr of item.stageInstructions) {
       const result = stageManager.apply(instr.type, instr.params);
       if (!isInstantGo && (instr.type === "pause" || instr.blocking) && result) await result;
     }
-    if (char.visualEffects.length > 0) {
-      const nextChar = allChars[charIdx + 1];
-      const isTokenEnd = !nextChar || nextChar.tokenIdx !== char.tokenIdx;
+    if (item.visualEffects.length > 0) {
+      const nextItem = items[charIdx + 1];
+      const isTokenEnd = !nextItem || nextItem.tokenIdx !== item.tokenIdx;
       if (isTokenEnd) {
-        const wrapper = tokens.find(t => t.tokenIdx === char.tokenIdx);
+        const wrapper = tokens.find(t => t.tokenIdx === item.tokenIdx);
         if (wrapper) {
-          const groupRes = await EffectProcessor.applyGroupEffects(wrapper, char.visualEffects);
+          const groupRes = await EffectProcessor.applyGroupEffects(wrapper, item.visualEffects);
           speedMultiplier = groupRes.speedMultiplier;
         }
       }

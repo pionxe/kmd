@@ -2,8 +2,10 @@ import { Container } from "pixi.js";
 import { parser } from "../parser/Parser";
 import { KineticText } from "../KineticText";
 import { layout } from "../layout/LayoutEngine";
-import type { KMDMetadata, KMDParseResult, KMDParagraphData } from "../parser/types";
+import type { KMDMetadata, KMDParagraphData } from "../parser/types";
 import type { Segment, ParagraphUnit } from "../state/Segment";
+import { ScriptBuildReporter } from "./ScriptBuildReporter";
+import { ScriptSourceLoader } from "./ScriptSourceLoader";
 import { stageManager } from "../stage/StageManager";
 import { useEditorStore } from "../../store/editorStore";
 import { PlaybackController, type PlaybackRuntimeState } from "./PlaybackController";
@@ -43,22 +45,19 @@ export class ScriptPlayer {
   // ═══════════════════════════════════════════════════════════
 
   public async load(kmdSource: string) {
+    ScriptBuildReporter.beginBuildSession();
+    stageManager.clearAuditSnapshot();
     let finalSource = kmdSource;
-    const looksLikeFilePath = !kmdSource.includes("\n") && (
-      kmdSource.endsWith(".kmd") || kmdSource.startsWith("/")
-    );
-    if (looksLikeFilePath) {
-      try {
-        const response = await fetch(kmdSource);
-        const blob = await response.blob();
-        finalSource = await blob.text();
-      } catch (err) {
-        console.error("[ScriptPlayer] Failed to fetch KMD source:", err);
-        return;
-      }
+    try {
+      finalSource = (await ScriptSourceLoader.resolve(kmdSource)).source;
+    } catch (err) {
+      ScriptBuildReporter.reportLoadFailure(kmdSource, err);
+      return;
     }
 
-    const result: KMDParseResult = parser.parse(finalSource);
+    const result = parser.parse(finalSource);
+    ScriptBuildReporter.reportParseResult(result, result.metadata.mode ?? this.currentMode);
+
     this.metadata = result.metadata;
     this.paragraphs = result.paragraphs;
     this.rawParagraphs = result.rawParagraphs;
@@ -81,11 +80,7 @@ export class ScriptPlayer {
 
     const store = useEditorStore();
     store.totalDuration = this.segment.duration * 1000; // 秒→毫秒
-    console.log(
-      `[ScriptPlayer] Segment built. Duration: ${this.segment.duration.toFixed(2)}s, ` +
-      `Paragraphs: ${this.segment.paragraphs.length}, ` +
-      `Behaviors: ${this.segment.behaviors.length}`
-    );
+    ScriptBuildReporter.reportSegmentBuilt(this.segment);
   }
 
   /**

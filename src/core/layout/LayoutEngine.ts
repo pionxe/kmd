@@ -1,4 +1,5 @@
 import { Container } from "pixi.js";
+import { auditBus } from "../diagnostics/AuditBus";
 import { KineticText } from "../KineticText";
 import { readerApp } from "../App";
 import type { KineticTextOptions } from "../KineticText";
@@ -226,12 +227,16 @@ class LayoutEngine {
 
   public dumpReport(): LayoutAuditRecord[] {
     const logs = TextLayoutEngine.lastAuditLog;
-    console.log("=== KMD Layout Audit Report ===");
-    fetch("http://localhost:9999/", {
-      method: "POST",
-      body: JSON.stringify(logs, null, 2),
-      headers: { "Content-Type": "application/json" }
-    }).catch(err => console.warn("Log collector not running:", err));
+    console.warn("[LayoutEngine] dumpReport() is deprecated; prefer unified audit snapshot.");
+    auditBus.emit({
+      phase: "layout",
+      subsystem: "layout",
+      severity: "warn",
+      payload: {
+        event: "layout.audit.dump",
+        recordCount: logs.length,
+      },
+    });
     return logs;
   }
 

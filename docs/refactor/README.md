@@ -1,6 +1,6 @@
 # Refactor Overview
 
-> 状态：Phase 1 至 Phase 5 已完成
+> 状态：Phase 1 至 Phase 6 已完成，Phase A 收口完毕
 > 目标：统一 parser / IR / layout / execution 四篇方案的入口、术语与优先级
 
 ## 管线总览
@@ -62,6 +62,10 @@ Phase 4
 Phase 5
   -> 单一语义源 / Layout mainline unification / LayoutPlanner-DisplayAssembler-CompatBinder 起手
   -> DONE
+
+Phase 6
+  -> Diagnostics/Audit 总线统一 / StageManager 第二轮瘦身 / layout-execution 剩余单体拆分 / legacy path tightening
+  -> DONE
 ```
 
 ## 文档导航
@@ -86,6 +90,10 @@ Phase 5
   - 第四阶段代码审查、文档漂移修正、下一阶段建议
 - [phase-5-implementation-plan.md](./phase-5-implementation-plan.md)
   - 第五阶段实施范围、单一语义源、layout 主链路拆分、`TextBuilder`/`KineticText` build boundary 收束
+- [phase-6-implementation-plan.md](./phase-6-implementation-plan.md)
+  - 第六阶段实施范围、diagnostics/audit 总线统一、`StageManager` 第二轮瘦身、layout/execution 剩余单体收口
+- [phase6-code-review.md](./phase6-code-review.md)
+  - 第六阶段代码审查、Phase A 完成判断与 Phase B 启动建议
 - [phase5-code-review.md](./phase5-code-review.md)
   - 第五阶段代码审查、风险分级与 WP5 回归建议
 - [phase3-code-review.md](./phase3-code-review.md)
@@ -149,9 +157,9 @@ Phase 5
 
 ## 当前优先级
 
-1. Phase 5 方案落地：paragraph build 单一语义源
-2. `LayoutPlanner / DisplayAssembler / CompatBinder` 拆分起手
-3. Phase B 最小骨架的前置边界准备
+1. Phase B 最小骨架：`DocumentSemanticIR` / `StateMiddleware` / `ControlFlowMiddleware`
+2. plugin hook 与 backend 分叉的前置边界准备
+3. Phase 6 遗留卫生项按需穿插处理，不再作为主线重构推进
 
 ## 延后目标
 

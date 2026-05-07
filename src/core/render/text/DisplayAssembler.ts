@@ -3,11 +3,13 @@ import { KineticChar } from "../../KineticChar";
 import { TokenWrapper } from "../../TokenWrapper";
 import { CompatBinder } from "./CompatBinder";
 import type {
+  AssembledDisplayResult,
   LayoutGlyphPlan,
   LayoutPlanResult,
   LegacyCharData,
   MaterializedLayoutAssembly,
   PositionedLegacyLayoutResult,
+  TextExecutionItemPayload,
   TextBuildTarget,
 } from "./types";
 
@@ -33,12 +35,14 @@ export class DisplayAssembler {
   public static assembleLayoutResults(
     target: TextBuildTarget,
     layoutResults: PositionedLegacyLayoutResult[],
-  ): TokenWrapper[] {
+  ): AssembledDisplayResult {
     let currentWrapper: TokenWrapper | null = null;
     let currentTokenIdx = -1;
     let currentLineY = -1;
 
     const newTokens: TokenWrapper[] = [];
+    const chars: KineticChar[] = [];
+    const executionItems: TextExecutionItemPayload[] = [];
 
     layoutResults.forEach((positioned) => {
       const {
@@ -63,10 +67,14 @@ export class DisplayAssembler {
         wrapper.tokenIdx = tokenIdx;
         newTokens.push(wrapper);
         target.addChild(wrapper);
+        chars.push(dummy);
+        executionItems.push(this.createExecutionItemPayload(dummy, data.charData));
         return;
       }
 
       CompatBinder.bindPositionedChar(char, positioned, data.charData);
+      chars.push(char);
+      executionItems.push(this.createExecutionItemPayload(char, data.charData));
 
       if (tokenIdx !== currentTokenIdx || isNewLine) {
         currentWrapper = new TokenWrapper();
@@ -81,7 +89,7 @@ export class DisplayAssembler {
       currentWrapper!.chars.push(char);
     });
 
-    return newTokens;
+    return { tokens: newTokens, chars, executionItems };
   }
 
   private static materializeGlyphPlan(glyphPlan: LayoutGlyphPlan): LegacyCharData {
@@ -117,6 +125,21 @@ export class DisplayAssembler {
       descent: glyphPlan.descent,
       stageInstructions: glyphPlan.stageInstructions,
       line: glyphPlan.line,
+    };
+  }
+
+  private static createExecutionItemPayload(
+    char: KineticChar,
+    charData: LegacyCharData,
+  ): TextExecutionItemPayload {
+    return {
+      char,
+      tokenIdx: charData.tokenIdx,
+      line: charData.line,
+      isNewLine: char.isNewLine || char.text === "\n",
+      visualEffects: [...(charData.effects || [])],
+      timingSugars: [...(charData.timingSugars || [])],
+      stageInstructions: [...(charData.stageInstructions || [])],
     };
   }
 }

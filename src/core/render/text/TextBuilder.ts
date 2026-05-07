@@ -50,11 +50,11 @@ export class TextBuilder {
       layoutStream,
       buildContext.layoutOptions,
     );
-    const newTokens = DisplayAssembler.assembleLayoutResults(
+    const assembly = DisplayAssembler.assembleLayoutResults(
       target,
       layoutResults as PositionedLegacyLayoutResult[],
     );
-    CompatBinder.bindTargetCollections(target, newTokens);
+    CompatBinder.bindTargetCollections(target, assembly);
   }
 
   private static resolveParagraphInput(input: ParagraphBuildInput): ParagraphWithIr {

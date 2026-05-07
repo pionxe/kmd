@@ -1,13 +1,22 @@
 import { Container, Graphics } from "pixi.js";
+import { auditBus } from "../diagnostics/AuditBus";
 import { layout } from "../layout/LayoutEngine";
 import { RuntimeValueResolver } from "../runtime/RuntimeValueResolver";
-import { MemoryStageAuditPort, type StageAuditPort } from "./StageAudit";
+import { UnifiedStageAuditPort, type StageAuditPort } from "./StageAudit";
+import { StageHostSession } from "./StageHostSession";
 import { PresentationManager } from "./PresentationManager";
 import type { ReaderHost } from "./ReaderHost";
 import { stageRuntime } from "./StageRuntimeInstance";
 import type { CameraModifier, StageEffectFunction, StageSceneClearHandler } from "./StageRuntime";
 import gsap from "gsap";
-import type { CameraState, StageAuditEntry, StageConflictDiagnostic, StageMode, StageState } from "./types";
+import type {
+  CameraState,
+  StageAuditEntry,
+  StageAuditSnapshot,
+  StageConflictDiagnostic,
+  StageMode,
+  StageState,
+} from "./types";
 
 class StageManager {
   public world: Container;
@@ -17,11 +26,9 @@ class StageManager {
   private letterbox: Graphics;
 
   private presentation = new PresentationManager();
-  private host: ReaderHost | null = null;
+  private hostSession: StageHostSession;
   private _bgColor: string | number = 0x000000;
-  private auditPort: StageAuditPort = new MemoryStageAuditPort();
-  private isInitialized = false;
-  private hostDisposers: Array<() => void> = [];
+  private auditPort: StageAuditPort = new UnifiedStageAuditPort();
 
   constructor() {
     this.world = new Container();
@@ -31,6 +38,14 @@ class StageManager {
     this.letterbox = new Graphics();
     this.world.addChild(this.backgroundLayer);
     this.world.addChild(this.contentLayer);
+    this.hostSession = new StageHostSession({
+      world: this.world,
+      uiLayer: this.uiLayer,
+      letterbox: this.letterbox,
+      presentation: this.presentation,
+      resolveComposedCameraState: (time) => stageRuntime.resolveComposedCameraState(time),
+      getBackgroundColor: () => this._bgColor,
+    });
     stageRuntime.setDesignMetricsProvider(() => ({
       width: this.presentation.designWidth,
       height: this.presentation.designHeight,
@@ -39,28 +54,11 @@ class StageManager {
   }
 
   public attachHost(host: ReaderHost) {
-    this.clearHostBindings();
-    this.host = host;
-    this.host.setBackgroundColor(this._bgColor);
-    if (this.isInitialized) {
-      this.resize();
-      this.bindHostListeners();
-    }
+    this.hostSession.attachHost(host);
   }
 
   public init(host?: ReaderHost) {
-    if (host) this.attachHost(host);
-    if (this.isInitialized) return;
-    if (!this.host) {
-      console.warn("[StageManager] init() called without a ReaderHost.");
-      return;
-    }
-
-    this.host.mountStage(this.world, this.uiLayer, this.letterbox);
-    this.resize();
-    this.bindHostListeners();
-
-    this.isInitialized = true;
+    this.hostSession.init(host);
   }
 
   /**
@@ -87,7 +85,7 @@ class StageManager {
 
     gsap.killTweensOf(stageRuntime.camera);
     gsap.killTweensOf(stageRuntime.cameraOffset);
-    this.resize();
+    this.hostSession.refresh();
   }
 
   /**
@@ -138,12 +136,29 @@ class StageManager {
     return this.presentation.viewport;
   }
 
-  public get camAuditLog(): StageAuditEntry[] {
-    return this.auditPort.getEntries();
+  public getAuditSnapshot(): StageAuditSnapshot {
+    return {
+      entries: this.auditPort.getEntries(),
+      conflicts: this.auditPort.getConflicts(),
+    };
   }
 
+  public clearAuditSnapshot() {
+    this.auditPort.clear();
+  }
+
+  /**
+   * @deprecated 兼容期 getter。未来请改用 `getAuditSnapshot().entries`。
+   */
+  public get camAuditLog(): StageAuditEntry[] {
+    return this.getAuditSnapshot().entries;
+  }
+
+  /**
+   * @deprecated 兼容期 getter。未来请改用 `getAuditSnapshot().conflicts`。
+   */
   public get stageConflictDiagnostics(): StageConflictDiagnostic[] {
-    return this.auditPort.getConflicts();
+    return this.getAuditSnapshot().conflicts;
   }
 
   public setAuditPort(port: StageAuditPort) {
@@ -165,12 +180,12 @@ class StageManager {
 
   public setDesignResolution(width: number, height: number) {
     this.presentation.setDesignResolution(width, height);
-    this.resize();
+    this.hostSession.refresh();
   }
 
   public setBackgroundColor(color: string | number) {
     this._bgColor = color;
-    this.host?.setBackgroundColor(color);
+    this.hostSession.syncBackgroundColor(color);
   }
 
   public setMode(mode: StageMode) {
@@ -190,7 +205,7 @@ class StageManager {
       stageRuntime.cameraOffset.zoom = 1;
       stageRuntime.cameraOffset.rotation = 0;
     }
-    this.resize();
+    this.hostSession.refresh();
   }
 
   public get config() {
@@ -205,71 +220,19 @@ class StageManager {
    * @deprecated 兼容期导出入口。未来应改走统一 AuditBus / DiagnosticsCollector。
    */
   public dumpCamReport() {
+    const snapshot = this.getAuditSnapshot();
     console.warn("[StageManager] dumpCamReport() is deprecated; prefer unified audit export.");
-    fetch("http://localhost:9999/cam", {
-      method: "POST",
-      body: JSON.stringify(this.camAuditLog, null, 2),
-      headers: { "Content-Type": "application/json" }
+    auditBus.emit({
+      phase: "runtime",
+      subsystem: "stage",
+      severity: "warn",
+      payload: {
+        event: "stage.audit.dump",
+        entryCount: snapshot.entries.length,
+        conflictCount: snapshot.conflicts.length,
+      },
     });
-  }
-
-  private resize() {
-    if (!this.host) return;
-
-    // 使用逻辑像素尺寸 (Screen)，它已经考虑了 resolution 和 autoDensity
-    const { width: screenW, height: screenH } = this.host.getScreenSize();
-    const viewport = this.presentation.updateViewport(screenW, screenH);
-
-    if (!this.isFixedRatio) {
-      this.letterbox.clear();
-      this.world.scale.set(1);
-      this.world.position.set(0, 0);
-      this.world.pivot.set(0, 0);
-      return;
-    }
-
-    const { offsetX, offsetY } = viewport;
-
-    this.letterbox.clear().fill({ color: 0x000000 });
-    if (offsetY > 0) {
-      this.letterbox.rect(0, 0, screenW, offsetY).rect(0, screenH - offsetY, screenW, offsetY);
-    }
-    if (offsetX > 0) {
-      this.letterbox.rect(0, 0, offsetX, screenH).rect(screenW - offsetX, 0, offsetX, screenH);
-    }
-    this.letterbox.fill();
-
-    this.updateWorldTransform();
-  }
-
-  private updateWorldTransform() {
-    const { baseScale: vs, offsetX, offsetY } = this.viewport;
-    if (!this.isFixedRatio) return;
-
-    const composed = stageRuntime.resolveComposedCameraState(performance.now());
-
-    // 核心修正：缩放应该叠加基础比例和相机缩放
-    this.world.scale.set(vs * composed.zoom);
-    this.world.rotation = composed.rotation;
-    // Pivot 依然在设计空间的中心
-    this.world.pivot.set((this.designWidth / 2) + composed.x, (this.designHeight / 2) + composed.y);
-    // Position 始终对齐画布物理中心
-    this.world.position.set(offsetX + (this.designWidth * vs) / 2, offsetY + (this.designHeight * vs) / 2);
-  }
-
-  private bindHostListeners() {
-    if (!this.host) return;
-    this.hostDisposers.push(this.host.onResize(() => this.resize()));
-    this.hostDisposers.push(this.host.addTicker(this.update, this));
-  }
-
-  private clearHostBindings() {
-    this.hostDisposers.forEach((dispose) => dispose());
-    this.hostDisposers = [];
-  }
-
-  private update() {
-    this.updateWorldTransform();
+    return snapshot.entries;
   }
 }
 
@@ -277,5 +240,5 @@ export const stageManager = new StageManager();
 
 import { stagePresets } from "./stagePresets";
 stageManager.registerBatch(stagePresets);
-export type { CameraState, StageAuditEntry, StageConflictDiagnostic, StageMode, StageState } from "./types";
+export type { CameraState, StageAuditEntry, StageAuditSnapshot, StageConflictDiagnostic, StageMode, StageState } from "./types";
 export type { CameraModifier, StageEffectFunction } from "./StageRuntime";

@@ -34,10 +34,16 @@ export class KineticChar extends Text {
   private modifiers: Map<string, Modifier> = new Map();
 
   public inFlow: boolean = true;
+  // Compat semantic payload mirror.
+  // New paragraph build / execution-plan mainline should read target._executionItems instead.
+  /** @deprecated Legacy compat surface. Prefer TextExecutionItemPayload. */
   public stageInstructions: any[] = [];
+  /** @deprecated Legacy compat surface. Prefer TextExecutionItemPayload. */
   public visualEffects: any[] = [];
+  /** @deprecated Legacy compat surface. Prefer TextExecutionItemPayload. */
   public timingSugars: any[] = [];
   public timingResults: { delayOverride?: number; speedMultiplier?: number } = {};
+  /** @deprecated Legacy compat surface. Prefer TextExecutionItemPayload / TokenWrapper.tokenIdx. */
   public tokenIdx: number = -1;
   public isNewLine: boolean = false;
   public line?: number;

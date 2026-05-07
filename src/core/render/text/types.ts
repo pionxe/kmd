@@ -42,9 +42,25 @@ export interface TextBuildTarget {
   y: number;
   _options: TextHostOptions;
   _pendingGlobalEffects: any[];
+  // Canonical paragraph build output. New mainline code should read this instead of legacy mirrors.
+  _displayAssembly: ParagraphDisplayAssembly;
+  /** @deprecated Legacy compat mirror. Prefer `_displayAssembly.tokens`. */
   tokens: TokenWrapper[];
+  /** @deprecated Legacy compat mirror. Prefer `_displayAssembly.chars`. */
   _allCharsCached: KineticChar[];
+  /** @deprecated Legacy compat mirror. Prefer `_displayAssembly.executionItems`. */
+  _executionItems: TextExecutionItemPayload[];
   addChild(child: any): any;
+}
+
+export interface TextExecutionItemPayload {
+  char: KineticChar;
+  tokenIdx: number;
+  line?: number;
+  isNewLine: boolean;
+  visualEffects: EffectConfig[];
+  timingSugars: PlannedTimingSugar[];
+  stageInstructions: PlannedStageInstruction[];
 }
 
 export interface LegacyCharData {
@@ -73,8 +89,26 @@ export interface MaterializedLayoutAssembly {
   allCharsData: LegacyCharData[];
 }
 
+// Display host objects and runtime execution payload travel together through this assembly,
+// instead of piggybacking on mutable fields attached to KineticChar.
+export interface ParagraphDisplayAssembly {
+  tokens: TokenWrapper[];
+  chars: KineticChar[];
+  executionItems: TextExecutionItemPayload[];
+}
+
+export type AssembledDisplayResult = ParagraphDisplayAssembly;
+
 export interface PositionedLegacyLayoutResult extends Omit<LayoutResult, "item"> {
   item: LegacyLayoutItem;
+}
+
+export function createEmptyParagraphDisplayAssembly(): ParagraphDisplayAssembly {
+  return {
+    tokens: [],
+    chars: [],
+    executionItems: [],
+  };
 }
 
 export type { LayoutGlyphPlan, LayoutPlanResult };

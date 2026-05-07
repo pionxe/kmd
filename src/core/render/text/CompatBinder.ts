@@ -1,10 +1,10 @@
 import type { KMDParagraphData } from "../../parser/types";
 import type { KineticChar } from "../../KineticChar";
-import type { TokenWrapper } from "../../TokenWrapper";
 import type {
-  LegacyCharData,
-  PositionedLegacyLayoutResult,
-  TextBuildTarget,
+    LegacyCharData,
+    ParagraphDisplayAssembly,
+    PositionedLegacyLayoutResult,
+    TextBuildTarget,
 } from "./types";
 
 export class CompatBinder {
@@ -49,6 +49,7 @@ export class CompatBinder {
 
     char.line = line;
     if (height > 0) char.anchor.y = ascent / height;
+    // Legacy compat mirror only. Core execution paths should consume target._executionItems instead.
     char.stageInstructions = stageInstructions || [];
     char.visualEffects = effects || [];
     char.timingSugars = timingSugars || [];
@@ -56,8 +57,13 @@ export class CompatBinder {
     char.visible = false;
   }
 
-  public static bindTargetCollections(target: TextBuildTarget, tokens: TokenWrapper[]) {
-    target.tokens = tokens;
-    target._allCharsCached = tokens.flatMap((token) => token.chars);
+  public static bindTargetCollections(
+    target: TextBuildTarget,
+    assembly: ParagraphDisplayAssembly,
+  ) {
+    target._displayAssembly = assembly;
+    target.tokens = assembly.tokens;
+    target._executionItems = assembly.executionItems;
+    target._allCharsCached = assembly.chars;
   }
 }

@@ -179,7 +179,8 @@ export class SegmentBuilder {
           EffectProcessor.applyGroupEffects(paragraphText, [...visualConfigs]);
         }
 
-        const paragraphExecutionPlan = createParagraphExecutionPlan(paragraphText._allCharsCached, paragraphText.tokens);
+        const displayAssembly = paragraphText._displayAssembly;
+        const paragraphExecutionPlan = createParagraphExecutionPlan(displayAssembly);
         const buildResult = TextPlayer.buildTimeline(
           paragraphText,
           paragraphExecutionPlan,
@@ -190,15 +191,10 @@ export class SegmentBuilder {
         if (childCount > 0) {
           segmentTl.add(buildResult.timeline, segmentCursor);
         }
-        console.log(
-          `[BuildSegment] p[${i}] chars=${paragraphText._allCharsCached.length} ` +
-          `tlChildren=${childCount} dur=${buildResult.duration.toFixed(2)}s ` +
-          `offset=${segmentCursor.toFixed(2)}s behaviors=${buildResult.behaviors.length}`,
-        );
 
         context.container.addChild(paragraphText);
         activeTexts.push(paragraphText);
-        paragraphText._allCharsCached.forEach((char) => { char.visible = false; });
+        displayAssembly.chars.forEach((char) => { char.visible = false; });
         paragraphText.visible = true;
 
         for (const behavior of buildResult.behaviors) {
@@ -293,14 +289,7 @@ export class SegmentBuilder {
 
     segmentTl.eventCallback("onComplete", () => {
       context.playbackState.isAutoPlaying = false;
-      console.log("[ScriptPlayer] Segment playback complete.");
     });
-
-    console.log(
-      `[BuildSegment] FINAL: segmentTl.duration()=${segmentTl.duration().toFixed(2)}s ` +
-      `segmentTl.getChildren().length=${segmentTl.getChildren().length} ` +
-      `calculatedDuration=${segmentCursor.toFixed(2)}s`,
-    );
 
     const segment: Segment = {
       id: "main",
