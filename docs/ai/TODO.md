@@ -225,6 +225,7 @@
 > **核心理念**: Segment 内部仍为预烘焙 Timeline（确定性、可 seek），Segment 之间的边为运行时求值（条件分支、状态驱动）。
 > 控制流语法独立于特效链，使用行首 `@` 结构标记。状态层嵌入极简表达式求值器。
 > 默认建立在 **Phase A.R Refactor Foundation**、**Phase A.E Execution Consolidation**、**Phase A.S Stage Host Split Preparation**、**Phase A.T Stage Runtime Extraction**、**Phase A.U Layout Mainline Unification** 与 **Phase A.V Diagnostics / Host Tightening** 完成的基础上推进；建议在 **Phase B Prep** 收口 metadata / host boundary 后正式启动。
+> 正式功能规划见 `docs/feature/1.6-phase-b-plan.md`。Phase B 每个功能包都应绑定一个技术债偿还目标，避免新能力继续扩张 legacy `TextPlayer.play()`、core/store 耦合、`EffectProcessor` 大分流器和 `SegmentBuilder` 单体职责。
 
 #### B0. 语法统一与增强
 

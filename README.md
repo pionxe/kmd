@@ -76,7 +76,7 @@ Important docs:
 - [Command Routing](docs/core/command-routing.md)
 - [Effect Pipeline](docs/core/effect-pipeline.md)
 - [Parser Pipeline](docs/core/parser-pipeline.md)
-- [Android Reader PRD](docs/android-reader/kmd-reader-android-prd.md)
+- [Android Reader PRD](apps/android-reader/docs/kmd-reader-android-prd.md)
 - [Repository Strategy](docs/repository-strategy.md)
 
 ## Status

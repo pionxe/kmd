@@ -1,3 +1,5 @@
+> 系统健康最大，长期痛苦最小.
+
 # Repository Guidelines
 
 ## Project Structure & Module Organization

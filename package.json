@@ -11,6 +11,9 @@
     "language:check": "node scripts/check-language-assets.mjs",
     "editor:dev": "pnpm --filter @kmd/editor dev",
     "editor:build": "pnpm --filter @kmd/editor build",
-    "editor:preview": "pnpm --filter @kmd/editor preview"
+    "editor:preview": "pnpm --filter @kmd/editor preview",
+    "community-api:dev": "pnpm --filter @kmd/community-api dev",
+    "community-api:build": "pnpm --filter @kmd/community-api build",
+    "community-api:test": "pnpm --filter @kmd/community-api test"
   }
 }
