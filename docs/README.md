@@ -1,81 +1,60 @@
 # 文档索引
 
-> 该索引用于给 `docs/` 一个稳定入口，避免架构文档、路线图、讨论稿和 AI 工作记忆混在一起时变得难找。
-> 最近更新：2026-05-11
+> 最近更新：2026-05-19
 
-## 当前结构
+`docs/` 按用途分成三类：开发规划、知识库、归档。新增文档时先判断它是“接下来要做什么”“长期事实是什么”，还是“历史记录是什么”。
 
-### `docs/core/`
+## 开发规划：`docs/planning/`
 
-长期有效的核心技术文档，描述运行中仍然成立的机制。
+放仍会影响后续开发顺序、任务拆分或仓库策略的文档。
 
-- `command-routing.md`：KMD 指令如何从 AST/IR 路由到 runtime
-- `effect-pipeline.md`：特效分类、目标作用域和渲染消费路径
-- `parser-pipeline.md`：`source -> AST -> IR -> runtime` 主路径
+- `roadmap/`：阶段路线，只放 Phase R、Phase B、Phase A refactor 等阶段级计划和审查。
+- `packages/`：KMD 生态包计划，例如 `language`、`reader-runtime-web`、未来 `core`。
+- `apps/`：KMD 生态应用计划，例如 editor、Android Reader、VS Code extension、community API。
+- `ecosystem/`：跨包、跨应用的仓库编排和生态策略。
+- `TODO.md`：AI 协作期任务池和历史任务追踪；阶段权威以 `roadmap/` 为准。
 
-### `docs/android-reader/`
+当前优先从这里开始：
 
-KMD Reader Android 的产品需求、课程阶段计划和移动端宿主策略。
+- `planning/roadmap/implementation-roadmap.md`
+- `planning/roadmap/phase-r-reader-runtime-web.md`
+- `planning/ecosystem/repository-strategy.md`
 
-- `kmd-reader-android-prd.md`：KMD Reader Android 课程项目第一阶段 PRD
-- `kmd-reader-android-stage-2-plan.md`：KMD Reader Android 第二阶段执行方案
+## 知识库：`docs/knowledge/`
 
-### `docs/research/`
+放长期有效、可被代码维护者反复查阅的事实、机制和研究材料。
 
-外部项目调研、选型比较、可借鉴方案归档。
+- `language/`：KMD 语言语法、命名空间、指令语义和设计草稿。
+- `runtime/`：parser、layout、effect、stage、playback 等运行链路。
+- `architecture/`：系统分层、host/runtime 边界和架构记忆。
+- `integration/`：Android WebView、VS Code、editor shell 等宿主接入知识。
+- `research/`：外部项目调研和可借鉴方案。
+- `decisions/`：后续新增 ADR，记录“为什么这样决定”。
 
-- `pretext.md`：`chenglou/pretext` 与本项目的重叠度分析
+修改 parser、layout、effect、stage 或 language 语义时，优先检查 `knowledge/runtime/` 与 `knowledge/language/`。
 
-### `docs/feature/`
+## 归档：`docs/archive/`
 
-功能阶段规划。这里的文档描述用户可见能力如何落地，并绑定对应的架构债务偿还。
+放不再作为当前事实来源、但仍值得保留的历史讨论、旧方案和迁移前材料。
 
-- `1.6-phase-b-plan.md`：KMD 1.6 Phase B 的 Segment Graph、State、Control Flow 与偿债式功能推进计划
+- `CLAUDE.md`：旧协作说明。
+- `jump_discussion.md`：长篇历史讨论。
+- `v1.6plan_segments.md`：旧阶段方案稿。
 
-### `docs/ai/`
+归档文档可以提供背景，但不应覆盖 `planning/` 和 `knowledge/` 中的当前结论。
 
-AI 协作期的工作记忆、路线草稿、任务池。适合内部推进，不适合作为唯一事实来源。
+## Android Reader 文档
 
-- `MEMORY.md`：偏全景架构手册
-- `TODO.md`：路线图与任务池
+Android Reader 是可选本地 checkout，主仓库通过 `.gitignore` 忽略其源码。若本地存在 `apps/android-reader/`，相关文档位于：
 
-### `docs/` 顶层文件
+- `apps/android-reader/docs/core-portability-webview-feasibility.md`
 
-当前顶层仍保留少量入口文档：
+## 放置规则
 
-- `repository-strategy.md`：KMD 主仓库、本地目录和未来拆分策略
-
-历史阶段文档和长篇讨论已经进入 `docs/archived/`：
-
-- `v1.6plan_segments.md`：阶段性方案稿
-- `jump_discussion.md`：长篇讨论记录
-
-## 目前是否需要整理
-
-需要，但属于“轻整理优先”，还没到必须大搬家的程度。
-
-当前最明显的问题：
-
-- 缺少统一入口，第一次进仓库时不容易判断哪份文档是“正式说明”，哪份只是讨论稿。
-- 顶层文件混合了路线图、讨论纪要和正式文档，边界不够清晰。
-- `docs/ai/` 和 `docs/core/` 都在描述架构，但用途不同，容易出现双份真相。
-- `jump_discussion.md` 体量很大，更像归档材料，不适合继续放在顶层作为常用入口。
-
-## 建议的整理原则
-
-先定规则，再慢慢搬。
-
-- 核心机制文档放进 `docs/core/`
-- Android Reader 产品和课程文档放进 `docs/android-reader/`
-- 外部项目调研统一放进 `docs/research/`
-- 路线图、阶段计划放进未来可新增的 `docs/roadmap/`
-- 讨论纪要、长对话归档放进未来可新增的 `docs/archive/`
-- `docs/ai/` 保留为工作区，但避免把它当成最终架构权威来源
-
-## 建议的下一步
-
-如果后面要继续整理文档库，我建议按这个顺序做：
-
-1. 先补索引和分类约定
-2. 再把顶层历史文件迁移到 `roadmap/` 或 `archive/`
-3. 最后处理 `docs/ai/` 与 `docs/core/` 的重复内容，保留单一权威文档
+- 要安排阶段顺序、阶段边界、roadmap：放 `planning/roadmap/`。
+- 要规划某个 npm/workspace 包：放 `planning/packages/`。
+- 要规划某个宿主应用或服务：放 `planning/apps/`。
+- 要解释现有系统如何工作、语言语义是什么、研究依据是什么：放 `knowledge/`。
+- 要保存过期方案、长对话、旧评审、历史上下文：放 `archive/`。
+- 如果一份文档从规划变成长期机制，应移动到 `knowledge/` 并更新引用。
+- 如果一份文档不再指导当前开发，应移动到 `archive/` 并在当前文档中保留必要结论。
