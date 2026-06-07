@@ -1,6 +1,6 @@
 # Knowledge Base
 
-> 最近更新：2026-05-19
+> 最近更新：2026-05-20
 
 这里放长期机制、语言设计、研究资料和维护者需要反复查阅的上下文。它回答“系统实际上如何工作，以及为什么可以这样理解”。
 
@@ -9,7 +9,9 @@
 - `runtime/core/parser-pipeline.md`：`source -> AST -> IR -> runtime` 主路径。
 - `runtime/core/command-routing.md`：KMD 指令分类、路由与消费路径。
 - `runtime/core/effect-pipeline.md`：特效分类、作用域和渲染应用路径。
+- `architecture/work-kmd-content-model.md`：`Work` 与 `.kmd` 源文件的内容模型边界。
 - `language/design.md`：语言设计探索草稿。
+- `language/brainstorm.md`：Phase B 相关语言脑暴，记录未实现的候选语义。
 - `architecture/MEMORY.md`：AI 协作期沉淀的全景架构记忆。
 - `research/pretext.md`：外部项目调研。
 

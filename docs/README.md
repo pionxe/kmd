@@ -1,6 +1,6 @@
 # 文档索引
 
-> 最近更新：2026-05-19
+> 最近更新：2026-05-27
 
 `docs/` 按用途分成三类：开发规划、知识库、归档。新增文档时先判断它是“接下来要做什么”“长期事实是什么”，还是“历史记录是什么”。
 
@@ -19,6 +19,10 @@
 - `planning/roadmap/implementation-roadmap.md`
 - `planning/roadmap/phase-r-reader-runtime-web.md`
 - `planning/ecosystem/repository-strategy.md`
+
+远期生态草案：
+
+- `planning/ecosystem/work-presentation-generation-draft.md`
 
 ## 知识库：`docs/knowledge/`
 
@@ -47,7 +51,9 @@
 
 Android Reader 是可选本地 checkout，主仓库通过 `.gitignore` 忽略其源码。若本地存在 `apps/android-reader/`，相关文档位于：
 
-- `apps/android-reader/docs/core-portability-webview-feasibility.md`
+- `apps/android-reader/docs/README.md`
+- `apps/android-reader/docs/planning/roadmap.md`
+- `apps/android-reader/docs/knowledge/integration/core-portability-webview-feasibility.md`
 
 ## 放置规则
 

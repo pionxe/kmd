@@ -1,12 +1,13 @@
 # Ecosystem Planning
 
-> 最近更新：2026-05-19
+> 最近更新：2026-05-27
 
 这里放跨包、跨应用的 KMD 生态编排策略。它回答“这些仓库、包、应用如何一起演进”。
 
 ## 当前入口
 
 - `repository-strategy.md`：KMD 主仓库、本地目录、Android Reader 协作和未来拆分策略。
+- `work-presentation-generation-draft.md`：`.kmd revision -> Work.presentation` 生态生成链草案，当前不作为 Android Reader 近期任务。
 
 ## 放置规则
 

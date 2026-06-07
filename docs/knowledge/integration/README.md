@@ -9,3 +9,8 @@
 - 宿主协议、bridge contract、asset loading、WebView 限制、extension 集成经验放这里。
 - 应用交付计划放 `../../planning/apps/`。
 - runtime 内部机制放 `../runtime/`。
+
+## 当前入口
+
+- `android-webview-runtime-protocol.md`：Android Reader 与 `reader-runtime-web` 的 WebView bridge 协议设计稿。
+- `reader-runtime-web-bundle.md`：reader-only Web bundle 的构建入口、产物布局和边界检查。

@@ -19,6 +19,10 @@
 {红绿灯} @ f.trafficLightMac.pause:char(1s).yellow
 ```
 
+## 脑暴入口
+
+尚未收敛的语言想法放在 `brainstorm.md`。例如跨 `.kmd` 引用、外部特效宏库、跨文档跳转和 dependency graph。
+
 ## 响应式变量需求
 
 引入“用户空间变量”，它被视为一个能够暂存特效、应用特效的对象。

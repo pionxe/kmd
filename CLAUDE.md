@@ -1,0 +1,153 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Repository
+
+KMD (Kinetic Markdown) is a pnpm monorepo for a Markdown-like markup language and toolchain for animated, GPU-rendered kinetic typography.
+
+Workspaces (declared in `pnpm-workspace.yaml`):
+
+- `apps/editor` — Vue 3 + Pixi.js Web editor and current home of the KMD core runtime (`src/core/`).
+- `apps/community-api` — Express mock backend used by the Android reader course project.
+- `packages/language` — Shared KMD language assets (TextMate grammar, `language-configuration.json`). Imported as `@kmd/language`.
+- `packages/reader-runtime-web` — Reader-only static bundle entry; currently re-exports from `apps/editor/src/core/runtime/` while Phase R extraction is in progress.
+
+Not in the workspace:
+
+- `extensions/vscode-kmd` — VS Code language extension. Keeps a packaged copy of `packages/language` assets that must stay in sync (verified by `pnpm language:check`).
+- `apps/android-reader/` — Optional local checkout; ignored by this repo.
+
+## Commands
+
+Run from the repo root. Package manager is **pnpm**. There is no lint script.
+
+```bash
+pnpm install
+pnpm dev                  # editor dev server (vite)
+pnpm build                # editor: vue-tsc type-check + production build
+pnpm preview              # editor: preview production build
+pnpm test:parser          # parser integration: node --import tsx apps/editor/src/final-parser-test.ts
+pnpm language:check       # verify packages/language assets match extensions/vscode-kmd packaged copies
+
+pnpm reader:build         # build reader-runtime-web bundle to dist/reader-runtime/
+pnpm reader:preview
+
+pnpm community-api:dev    # tsx watch on apps/community-api/src/index.ts (listens on :3000)
+pnpm community-api:build  # tsc
+pnpm community-api:test   # vitest run
+```
+
+When working on parser, layout, effect routing, or shared runtime behavior, validate with `pnpm build` and `pnpm test:parser` before opening a PR. There is no full unit-test suite yet — add regression-oriented TS scripts alongside `apps/editor/src/final-parser-test.ts` when fixing engine bugs, and add sample KMD inputs under `apps/editor/public/` or `apps/editor/public/tests/`.
+
+## High-Level Architecture
+
+### Where the runtime lives
+
+The KMD core runtime is still inside `apps/editor/src/core/`. Phase R is actively extracting a WebView-hostable reader runtime by establishing a contract layer in `apps/editor/src/core/runtime/` (`ReaderRuntimeContract`, `ReaderRuntimeProtocol`, `ReaderRuntimeSession`, `RuntimeAssetPolicy`) which `packages/reader-runtime-web` re-exports. Do **not** import editor UI modules (Vue components, Pinia, Monaco, TextMate, editor panels) from anything reached by the reader runtime hot path. Editor-only adapters that bridge runtime callbacks back to Pinia live in `apps/editor/src/runtime/`.
+
+### Editor pipeline (data flow)
+
+```
+KMD source text
+  → KMDParser (core/parser/Parser.ts)         # frontmatter + paragraph split
+    → KMDScanner                              # tokenize each paragraph line
+      → KMDCommandParser                      # parse @-chain effects (f.red.wave(...))
+  → KMDParagraphData[]                        # tokens, globalEffects, blockOptions
+
+Per paragraph render:
+  KineticText.init(input)
+    → LayoutPlanner / LayoutStreamBuilder     # measure + expand layout cmds → LayoutStream
+      → TextLayoutEngine                      # assigns absolute x/y to each char
+    → DisplayAssembler                        # materializes KineticChar + TokenWrapper into Pixi scene
+  ParagraphExecutionPlan + ChainExecutionPlan
+    → TextPlayer.buildTimeline()              # GSAP timeline drives char reveal, effects, stage cues
+
+Multi-paragraph:
+  ScriptPlayer
+    → SegmentBuilder (scene-bake pass)        # pre-computes pData.snapshot for instant seekTo()
+    → PlaybackController                      # seek / replay / behavior re-register
+```
+
+### Global singletons (module-level, not Vue-injected)
+
+| Export          | File                                              | Purpose                                                  |
+| --------------- | ------------------------------------------------- | -------------------------------------------------------- |
+| `readerApp`     | `core/App.ts`                                     | Pixi `Application`, font loading                         |
+| `stageManager`  | `core/stage/StageManager.ts`                      | Façade over `StageRuntime`, host session, audit          |
+| `layout`        | `core/layout/LayoutEngine.ts`                     | Vertical flow accumulator, globalMarkers, scroll         |
+| `parser`        | `core/parser/Parser.ts`                           | KMD parser entry point                                   |
+| `scriptPlayer`  | `core/player/ScriptPlayer.ts`                     | Multi-paragraph playback + scene-baking                  |
+| `effectManager` | `core/effects/EffectManager.ts`                   | Visual effect registry with mutex groups                 |
+| `styleManager`  | `core/effects/StyleManager.ts`                    | Style modifier registry                                  |
+| `layoutManager` | `core/layout/LayoutManager.ts`                    | Layout command expander registry                         |
+
+### Core subsystems (`apps/editor/src/core/`)
+
+- **`parser/`** — `Parser.ts` extracts YAML frontmatter and splits paragraphs; `KMDScanner` handles block options, `---` scene-clear, braced groups, markdown sugars (`**bold**`, `*italic*`, `# heading`), timing pipes `|`, and `>` advance signals. Commands after `@` go through `KMDCommandParser`. `ScopeRouter` / `CompatProjector` / `commandCatalog.ts` form the Phase A.R parser boundary; parsers operate against a `CommandRegistryView` rather than reaching into managers directly.
+- **`layout/`** — `LayoutPlanner` does measurement and layout-stream expansion; `TextLayoutEngine` assigns coordinates; `LayoutEngine` (singleton) manages paragraph-level vertical stacking and resize. `LayoutPreflightResult` formalizes the phantom pass for forward-reference marker sync.
+- **`effects/`** — `EffectManager` (visual effects with mutex groups), `StyleManager` (style modifiers), `EffectProcessor` (char/group/block application). Presets in `presets.ts`. Style/effect classification flows through typed metadata (Phase BP).
+- **`stage/`** — `StageRuntime` owns camera/cameraOffset/buildMode/registry/apply/modifiers; `StageManager` is now a façade for host/presentation/audit/compat. Stage commands like `cam.move`, `cam.zoom`, `bg`, `scene.clear` are registered in `stagePresets.ts`. `scene.clear` is the single runtime path for `---` (do not re-introduce `isSceneClear` displays in `SegmentBuilder`).
+- **`player/`** — `ScriptPlayer` is the façade; `SegmentBuilder` handles segment build + paragraph placement (consumes `ParagraphBuildInput`, not raw text); `PlaybackController` handles seek/replay/behavior re-register; `TextPlayer` consumes `ParagraphExecutionPlan` rather than reading semantic fields off `KineticChar` (legacy compat surface only). `ScriptSourceLoader` is the asset/source loader, constrained by `RuntimeAssetPolicy` under reader runtime.
+- **`render/text/`** — Build context resolvers and `TextPlayer` execution machinery (timing cursor, stage cue scheduler, diagnostics sink).
+- **`runtime/`** — Phase R reader runtime contract, protocol envelope (`version`/`id`/`type`/`payload`), session façade (`loadSource / play / pause / seek / setTimeScale / inspect / dispose`), and host asset policy.
+- **`types/`** — Shared contracts (`BaseCue`, `AnchorRef`, `ChainExecutionPlan`, `LayoutPreflightResult`, `DiagnosticEvent`, etc.). Effect/Layout/Stage command metadata typing lives here.
+- **`diagnostics/` / audit bus** — Build-scope collector + runtime-scope bus that aggregates parser/layout/execution/stage diagnostics. Legacy `dumpReport()` / `camAuditLog` paths are compat wrappers.
+
+### Vue / IDE layer (editor only)
+
+`src/App.vue` is the shell with toolbar + dock layout. `src/store/editorStore.ts` (Pinia) holds `kmdContent`, `canvasConfig`, `timelineMarkers`, `layoutTree` (dock state persisted in localStorage), and the player reference. The dock system (`src/components/DockSystem/`) is a recursive split-pane tree with panel types `editor`, `preview`, `monitor`, `inspector`. Monaco grammar/theme/IntelliSense is driven from `packages/language` assets.
+
+## Phase / Roadmap Context
+
+- **Done:** Phase A.R/A.E/A.S/A.T/A.U/A.V refactors (parser boundary, execution consolidation, stage runtime extraction, layout mainline unification, diagnostics/host tightening) and Phase B Prep (metadata + host boundary readiness).
+- **Current:** **Phase R — Reader Runtime Web Extraction.** Goal is a WebView-hostable, no-Pinia/editor reader runtime before Phase B language work resumes. Plan: `docs/planning/roadmap/phase-r-reader-runtime-web.md`. Decision (2026-05-19): Phase B is deferred until Phase R lands.
+- **Roadmap/deferred:** Phase B (Segment Graph, state, control flow, syntax `+` / `\` / `{var.*}` / `@ if|loop|while|tag|jump|wait|set`), Phase C (interactive runtime), v1.7 plugin architecture.
+
+## Conventions
+
+- Vue SFCs in PascalCase (`KmdEditor.vue`); stores / utilities in camelCase (`editorStore.ts`); 2-space indent, semicolons, single quotes in `.ts`.
+- Do **not** extract `apps/editor/src/core/` into `packages/core/` yet — wait until the repository strategy explicitly calls for it. Reader-runtime extraction goes through `apps/editor/src/core/runtime/` first, surfaced via `packages/reader-runtime-web` re-export.
+- Import shared language assets via `@kmd/language`, never by reaching into `extensions/vscode-kmd/`.
+- Adding new behavior:
+  - Visual effects → export a `{ fn, meta }` from `core/effects/presets.ts` (auto-registers via `registerBatch`).
+  - Style modifiers → register in `core/effects/StyleManager.ts`.
+  - Layout commands → register an expander in `core/layout/layoutExpanders.ts`.
+  - Stage commands → register in `core/stage/stagePresets.ts`.
+  - Then update `KMDParser.validate()` in `core/parser/Parser.ts` if the new name must pass the known-command check.
+
+## Docs To Read Before Changing Things
+
+- `docs/README.md` — doc taxonomy (`planning/`, `knowledge/`, `archive/`).
+- `docs/planning/roadmap/phase-r-reader-runtime-web.md` — current phase plan.
+- `docs/planning/roadmap/implementation-roadmap.md` — long-form roadmap and backlog.
+- `docs/planning/ecosystem/repository-strategy.md` — when (not yet) to split packages.
+- `docs/knowledge/runtime/core/command-routing.md`, `effect-pipeline.md`, `parser-pipeline.md` — before touching command routing, effects, or the parser.
+- `docs/planning/TODO.md` — AI-collaboration task pool and historical execution log.
+
+When you change command routing, effects, layout, stage, or language semantics, update the corresponding doc in the same change. Place new docs under `planning/`, `knowledge/`, or `archive/` per the rules in `docs/README.md`.
+
+## KMD Syntax (quick reference)
+
+```
+---
+mode: stage          # stage | scroll | page
+designWidth: 1920
+designHeight: 1080
+fontFamily: Sasara Regular
+---
+
+[align=center .glitch]               # block options + global effects
+{Hello} {World} @ f.red.wave  f.blue.bold
+Plain text line @ .goto(0, 100)
+---                                   # scene clear (fades out current text)
+```
+
+- `{...}` braced token group; maps 1:1 with effect chain slots.
+- `@` separates body from commands.
+- `f.effect(params)` per-token visual effect; bare `.effect` is global block effect.
+- `>` / `>>` / `>>>` timing advance (char / group / block).
+- `~` slow, `^` fast (line-scoped persistent speed sugars).
+- `|` or `|(1s)` segment-level pause.
+- `f.hold(1s)` effect-chain timing; `pause(Xs)` is a stage-level timeline pause.
+- `**bold**`, `*italic*`, `# heading` are Markdown sugars; `---` is scene-clear.

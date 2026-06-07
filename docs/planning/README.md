@@ -1,6 +1,6 @@
 # Development Planning
 
-> 最近更新：2026-05-19
+> 最近更新：2026-05-27
 
 这里放仍会影响开发顺序、任务拆分和生态编排的文档。它回答“下一步做什么、由哪个包或应用承接、做到什么程度算结束”。
 
@@ -10,6 +10,7 @@
 - `roadmap/phase-r-reader-runtime-web.md`：Phase R reader-runtime-web 抽离路线。
 - `roadmap/phase-b/1.6-phase-b-plan.md`：Phase B 语言与 Segment Graph 功能路线，当前延后。
 - `ecosystem/repository-strategy.md`：仓库、包边界与 Android Reader 协作策略。
+- `ecosystem/work-presentation-generation-draft.md`：`Work.presentation` 生态生成链草案，当前只作为远期对齐点。
 - `TODO.md`：AI 协作任务池和历史任务追踪。
 
 ## 子目录
