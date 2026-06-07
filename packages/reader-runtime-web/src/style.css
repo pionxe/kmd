@@ -1,0 +1,65 @@
+:root {
+  color-scheme: dark;
+  background: #000;
+  color: #f7f7f7;
+  font-family: "LXGW WenKai", "Sasara Regular", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#reader-root {
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  width: 100vw;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(113, 214, 197, 0.14), transparent 32%),
+    radial-gradient(circle at 82% 78%, rgba(242, 179, 109, 0.12), transparent 34%),
+    #000;
+}
+
+#reader-root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+#reader-root canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#runtime-status {
+  position: absolute;
+  z-index: 2;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  max-width: calc(100% - 24px);
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(0, 0, 0, 0.38);
+  font-size: 12px;
+  line-height: 1.3;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}

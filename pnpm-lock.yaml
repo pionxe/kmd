@@ -99,6 +99,8 @@ importers:
 
   packages/language: {}
 
+  packages/reader-runtime-web: {}
+
 packages:
 
   '@babel/helper-string-parser@7.27.1':

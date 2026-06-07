@@ -1,0 +1,14 @@
+{
+  "name": "@kmd/reader-runtime-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --dir ../../apps/editor exec vite build --config ../../packages/reader-runtime-web/vite.config.ts",
+    "check": "pnpm --dir ../../apps/editor exec vite build --config ../../packages/reader-runtime-web/vite.config.ts",
+    "preview": "pnpm --dir ../../apps/editor exec vite preview --config ../../packages/reader-runtime-web/vite.config.ts --host 0.0.0.0"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
